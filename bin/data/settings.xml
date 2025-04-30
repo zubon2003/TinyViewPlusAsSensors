@@ -1,0 +1,9 @@
+<system>
+    <sysStat>1</sysStat>
+    <tvpComport>COM5</tvpComport>
+</system>
+<view>
+    <fullscreen>0</fullscreen>
+    <camTrim>0</camTrim>
+    <camFrame>0</camFrame>
+</view>
