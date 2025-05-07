@@ -13,7 +13,7 @@
 /* ---------- definitions ---------- */
 
 // system
-#define APP_VER         "v0.0.1 alpha1"
+#define APP_VER         "v0.0.2 alpha1"
 
 #define DEBUG_ENABLED   false
 #define HELP_LINES      35  // must be <= OVLTXT_LINES
@@ -34,6 +34,7 @@
 // settings
 #define SETTINGS_FILE   "settings.xml"
 #define SNM_SYS_STAT    "system:sysStat"
+#define SNM_DTCTALL_FRM "system:allFrameDetect"
 #define TVP_COMPORT     "system:tvpComport"
 #define SNM_VIEW_FLLSCR "view:fullscreen"
 #define SNM_VIEW_CAMTRM "view:camTrim"
@@ -46,6 +47,7 @@
 // camera profile
 #define CAM_FPV_FILE    "camera/fpv.xml"
 #define CFNM_NAME       "camera:name"
+#define CFNM_CAMNUM     "camera:camnum"
 #define CFNM_GRAB_W     "camera:grab:width"
 #define CFNM_GRAB_H     "camera:grab:height"
 #define CFNM_CROP_X     "camera:crop:x"
@@ -154,7 +156,7 @@
 #define ARAP_RSLT_DELAY (FRAME_RATE * 3)
 #define ARAP_RECT_LINEW 5
 #define WATCH_COUNT_SEC 5
-
+#define DTCT_ALL_FRAME  false
 
 /* ---------- classes ---------- */
 
@@ -174,6 +176,12 @@ public:
     int posXTarget;
     int posYTarget;
     int posYWideTarget;
+    int grabW;
+    int grabH;
+    int cropX;
+    int cropY;
+    int cropW;
+    int cropH;
     float imageScale;
     bool needCrop;
     bool needResize;
@@ -204,6 +212,7 @@ public:
 class tvpCamProf {
 public:
     bool enabled;
+    int camnum;
     string name;
     int grabW;
     int grabH;
@@ -252,15 +261,13 @@ void initConfig();
 void toggleSysStat();
 // view
 void grabberUpdateResize(int);
+void grabberUpdateResizeMulti();
 void toggleFullscreen();
 void setupColors();
 void setViewParams();
 int calcViewParam(int, int, int);
 void updateViewParams();
-// osc
-void recvOscSpeech(string, string);
-void sendOscSystemInfo(string);
-void sendOscRaceEvent(string);
+
 // draw
 void drawCameraImage(int);
 void drawCameraARMarker(int, bool);

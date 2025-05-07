@@ -33,6 +33,7 @@ bool cameraTrimEnabled;
 bool fullscreenEnabled;
 bool cameraFrameEnabled;
 int hideCursorTimer;
+bool isMultiView;
 // AR lap timer
 ofSoundPlayer beepSound, beep3Sound, notifySound, cancelSound;
 ofSoundPlayer countSound, finishSound;
@@ -54,6 +55,9 @@ float sensorEndTime[4];
 
 ofSerial tvpSerial;
 string tvpComport;
+
+// Perform gate detection on all frames (true = all frames, false = every two frames).
+bool gateDetectAllFrames;
 //--------------------------------------------------------------
 void setupInit() {
     // system
@@ -110,7 +114,8 @@ void setupInit() {
     camProfFpvExtra.enabled = false;
     //SERIAL
     serialSendByte = 0;
-    
+    //
+    gateDetectAllFrames = DTCT_ALL_FRAME;
 }
 
 //--------------------------------------------------------------
@@ -132,6 +137,8 @@ void loadSettingsFile() {
     // camera frame visibility
     cameraFrameEnabled = xmlSettings.getValue(SNM_VIEW_CAMFRM, cameraFrameEnabled);
 
+    //GATE DETECT FREQUENCY
+    gateDetectAllFrames = xmlSettings.getValue(SNM_DTCTALL_FRM, gateDetectAllFrames);
 }
 
 void saveSettingsFile() {
@@ -150,6 +157,7 @@ void saveSettingsFile() {
     xmlSettings.setValue(SNM_VIEW_CAMFRM, cameraFrameEnabled);
 
 
+    xmlSettings.setValue(SNM_DTCTALL_FRM, gateDetectAllFrames);
 
     xmlSettings.saveFile(SETTINGS_FILE);
 }
@@ -163,6 +171,9 @@ void loadCameraProfileFile() {
     ofxXmlSettings *s = &xmlCamProfFpv;
     // load
     p->enabled = true;
+    p->camnum = s->getValue(CFNM_CAMNUM, 1);
+    if (p->camnum > 1) isMultiView = true;
+    else isMultiView = false;
     p->name = s->getValue(CFNM_NAME, "tvp-no-named-camera");
     p->grabW = s->getValue(CFNM_GRAB_W, CAMERA_WIDTH);
     p->grabH = s->getValue(CFNM_GRAB_H, CAMERA_HEIGHT);
@@ -210,54 +221,89 @@ void reloadCameras() {
     int cidx = 0;
     cameraNum = 0;
     ofLog() << "Scanning camera... " << devices.size() << " devices";
-    for (size_t i = 0; i < devices.size(); i++) {
-        int w, h, aw, ah;
-        bool extra = false;
-        if (prof->enabled == true && regex_search(devices[i].deviceName, regex(prof->name)) == true) {
-            extra = true;
+    if (isMultiView == false){
+        for (size_t i = 0; i < devices.size(); i++) {
+            int w, h, aw, ah;
+            bool extra = false;
+            if (prof->enabled == true && regex_search(devices[i].deviceName, regex(prof->name)) == true) {
+                extra = true;
+            }
+            if (regex_search(devices[i].deviceName, regex("USB2.0 PC CAMERA")) == false && extra == false) {
+                continue;
+            }
+            if (devices[i].bAvailable == false) {
+                continue;
+            }
+            grabber[cidx].setDeviceID(devices[i].id);
+            if (extra == true) {
+                w = prof->grabW;
+                h = prof->grabH;
+            }
+            else {
+                w = CAMERA_WIDTH;
+                h = CAMERA_HEIGHT;
+            }
+            if (grabber[cidx].initGrabber(w, h) == false) {
+                continue;
+            }
+            if (extra == true) {
+                camView[cidx].needCrop = prof->needCrop;
+                camView[cidx].needResize = prof->needResize;
+                camView[cidx].isWide = prof->isWide;
+            }
+            else {
+                camView[cidx].needCrop = false;
+                camView[cidx].needResize = false;
+                camView[cidx].isWide = false;
+            }
+            camView[cidx].cropX = prof->cropX;
+            camView[cidx].cropY = prof->cropY;
+            camView[cidx].cropW = prof->cropW;
+            camView[cidx].cropH = prof->cropH;
+            camView[cidx].grabW = w;
+            camView[cidx].grabH = h;
+            aw = grabber[cidx].getWidth();
+            ah = grabber[cidx].getHeight();
+            ofLog() << "[" << devices[i].id << "] " << devices[i].deviceName;
+            ofLog() << "  preferred resolution: " << w << " x " << h;
+            ofLog() << "  actual resolution: " << aw << " x " << ah;
+            if (extra == true) {
+                ofLog() << "  crop: "
+                    << prof->cropX << ", " << prof->cropY << ", "
+                    << prof->cropW << ", " << prof->cropH;
+            }
+            cidx++;
+            cameraNum++;
+            if (cameraNum == CAMERA_MAXNUM) {
+                break;
+            }
         }
-        
-        if (regex_search(devices[i].deviceName, regex("USB2.0 PC CAMERA")) == false && extra == false) {
-            continue;
-        }
-        if (devices[i].bAvailable == false) {
-            continue;
-        }
-        grabber[cidx].setDeviceID(devices[i].id);
-        if (extra == true) {
-            w = prof->grabW;
-            h = prof->grabH;
-        }
-        else {
-            w = CAMERA_WIDTH;
-            h = CAMERA_HEIGHT;
-        }
-        if (grabber[cidx].initGrabber(w, h) == false) {
-            continue;
-        }
-        if (extra == true) {
-            camView[cidx].needCrop = prof->needCrop;
-            camView[cidx].needResize = prof->needResize;
-            camView[cidx].isWide = prof->isWide;
-        }
-        else {
-            camView[cidx].needCrop = false;
-            camView[cidx].needResize = false;
-            camView[cidx].isWide = false;
-        }
-        aw = grabber[cidx].getWidth();
-        ah = grabber[cidx].getHeight();
-        ofLog() << "[" << devices[i].id << "] " << devices[i].deviceName;
-        ofLog() << "  preferred resolution: " << w << " x " << h;
-        ofLog() << "  actual resolution: " << aw << " x " << ah;
-        if (extra == true) {
-            ofLog() << "  crop: "
-                << prof->cropX << ", " << prof->cropY << ", "
-                << prof->cropW << ", " << prof->cropH;
-        }
-        cidx++;
-        cameraNum++;
-        if (cameraNum == CAMERA_MAXNUM) {
+    }
+    else {
+        for (size_t i = 0; i < devices.size(); i++) {
+            if (regex_search(devices[i].deviceName, regex(prof->name)) == false) continue;
+            if (devices[i].bAvailable == false) continue;
+            //
+            cameraNum = prof->camnum;
+
+            for (int j = 0; j <= cameraNum-1; j++) {
+                grabber[j].setDeviceID(devices[i].id);
+                camView[j].grabW = prof->grabW;
+                camView[j].grabH = prof->grabH;
+                grabber[j].initGrabber(camView[j].grabW, camView[j].grabH);
+                camView[j].needCrop = true;
+                camView[j].needResize = true;
+                camView[j].isWide = prof->isWide;
+
+                if (j % 2 == 0) camView[j].cropX = prof->cropX / 2;
+                else camView[j].cropX = camView[j].grabW / 2 + prof->cropX / 2;
+                
+                if (j <= 1) camView[j].cropY = prof->cropY / 2;
+                else camView[j].cropY = camView[j].grabH / 2 + prof->cropY / 2;
+                
+                camView[j].cropW = prof->cropW / 2;
+                camView[j].cropH = prof->cropH / 2;
+            }
             break;
         }
     }
@@ -337,73 +383,86 @@ void ofApp::update() {
     if (raceStarted == true) elapsedTime = ofGetElapsedTimef();
 
     // camera
-    for (int i = 0; i < cameraNum; i++) {
-        grabberUpdateResize(i);
+    if (isMultiView == true) {
+        grabberUpdateResizeMulti();
     }
+    else {
+        for (int i = 0; i < cameraNum; i++) {
+            grabberUpdateResize(i);
+        }
+    }
+
 
     // lap
     frameTick = !frameTick;
-    serialSendByte = 0;
-    for (int i = 0; i < cameraNum; i++) {
-        // AR lap timer
-        if (frameTick == true) {
+    if (gateDetectAllFrames == true) frameTick = true;
+
+    if (frameTick == true) {
+        serialSendByte = 0;
+        for (int i = 0; i < cameraNum; i++) {
+            // AR lap timer
             if (camView[i].needCrop == true || camView[i].needResize == true) {
                 camView[i].aruco.detectMarkers(camView[i].resizedPixels);
             }
-        }
-        else {
-            camView[i].aruco.detectMarkers(grabber[i].getPixels());
-        }
-        // all markers
-        int anum = camView[i].aruco.getNumMarkers();
-        if (anum < ARAP_MNUM_THR && camView[i].foundMarkerNum >= ARAP_MNUM_THR) {
-            camView[i].flickerCount++;
-            if (camView[i].flickerCount <= 3) {
-                anum = camView[i].foundMarkerNum; // anti flicker
-            } else {
+            else {
+                camView[i].aruco.detectMarkers(grabber[i].getPixels());
+            }
+
+            // all markers
+            int anum = camView[i].aruco.getNumMarkers();
+            if (anum < ARAP_MNUM_THR && camView[i].foundMarkerNum >= ARAP_MNUM_THR) {
+                camView[i].flickerCount++;
+                if (camView[i].flickerCount <= 3) {
+                    anum = camView[i].foundMarkerNum; // anti flicker
+                }
+                else {
+                    camView[i].flickerCount = 0;
+                }
+            }
+            else {
                 camView[i].flickerCount = 0;
+            }
+            // vaild markers
+            int vnum = camView[i].aruco.getNumMarkersValidGate();
+            if (vnum < ARAP_MNUM_THR && camView[i].foundValidMarkerNum >= ARAP_MNUM_THR) {
+                camView[i].flickerValidCount++;
+                if (camView[i].flickerValidCount <= 3) {
+                    vnum = camView[i].foundValidMarkerNum; // anti flicker
                 }
-        } else {
-            camView[i].flickerCount = 0;
-        }
-        // vaild markers
-        int vnum = camView[i].aruco.getNumMarkersValidGate();
-        if (vnum < ARAP_MNUM_THR && camView[i].foundValidMarkerNum >= ARAP_MNUM_THR) {
-            camView[i].flickerValidCount++;
-            if (camView[i].flickerValidCount <= 3) {
-                vnum = camView[i].foundValidMarkerNum; // anti flicker
-            } else {
-                camView[i].flickerValidCount = 0;
+                else {
+                    camView[i].flickerValidCount = 0;
                 }
-        } else {
+            }
+            else {
                 camView[i].flickerValidCount = 0;
+            }
+
+            if ((anum == 0) && (camView[i].markerDetectStrengthLast > 0) && (camView[i].rssiOutput == false)) {
+                camView[i].markerEndTime = elapsedTime + 0.2f;
+                camView[i].markerOutput = camView[i].markerDetectStrengthLast;
+                camView[i].rssiOutput = true;
+            }
+
+            //RSSI pulse of gate passage is turned off after 0.2 seconds
+            if (camView[i].markerEndTime < elapsedTime) {
+                camView[i].markerOutput = 0b00;
+                camView[i].markerEndTime = 0;
+                camView[i].rssiOutput = false;
+            }
+
+            serialSendByte |= camView[i].markerOutput << i * 2;
+
+            if ((vnum >= ARAP_MNUM_THR) && (vnum == anum)) camView[i].markerDetectStrengthLast = 0b11;
+            else if (vnum >= ARAP_MNUM_THR) camView[i].markerDetectStrengthLast = 0b10;
+            else if (anum >= ARAP_MNUM_THR) camView[i].markerDetectStrengthLast = 0b01;
+            else camView[i].markerDetectStrengthLast = 0b00;
+
+            camView[i].foundMarkerNum = anum;
+            camView[i].foundValidMarkerNum = vnum;
         }
-
-        if ((anum == 0) && (camView[i].markerDetectStrengthLast > 0) && (camView[i].rssiOutput == false)) {
-            camView[i].markerEndTime = elapsedTime + 0.2f;
-            camView[i].markerOutput = camView[i].markerDetectStrengthLast;
-            camView[i].rssiOutput = true;
-        }
-        //RSSI pulse of gate passage is turned off after 0.2 seconds
-        if (camView[i].markerEndTime <  elapsedTime) {
-            camView[i].markerOutput = 0b00;
-            camView[i].markerEndTime = 0;
-            camView[i].rssiOutput = false;
-        }
-
-        serialSendByte |= camView[i].markerOutput << i * 2;
-
-        if ((vnum >= ARAP_MNUM_THR) && (vnum == anum)) camView[i].markerDetectStrengthLast = 0b11;
-        else if (vnum >= ARAP_MNUM_THR) camView[i].markerDetectStrengthLast = 0b10;
-        else if (anum >= ARAP_MNUM_THR) camView[i].markerDetectStrengthLast = 0b01;
-        else camView[i].markerDetectStrengthLast = 0b00;
-
-        camView[i].foundMarkerNum = anum;
-        camView[i].foundValidMarkerNum = vnum;
+        tvpSerial.writeByte(serialSendByte);
+        updateViewParams();
     }
-    tvpSerial.writeByte(serialSendByte);
-    // view
-    updateViewParams();
 }
 
 //--------------------------------------------------------------
@@ -579,12 +638,6 @@ void drawCameraARMarker(int idx, bool isSub) {
             myFontLap.drawString(lv_invalid, x, y);
         }
     }
-    //debug
-    //y = y + 10;
-    //int hehehe;
-    //hehehe = camView[idx].markerOutput;
-    //myFontLap.drawString(ofToString(hehehe), x, y);
-    //myFontLap.drawString("hello", x, y);
 }
 
 
@@ -593,7 +646,6 @@ void drawCameraARMarker(int idx, bool isSub) {
 
 
 
-//--------------------------------------------------------------
 void drawCamera(int idx) {
 
     // image
@@ -601,6 +653,7 @@ void drawCamera(int idx) {
     // AR marker
     drawCameraARMarker(idx, false);
 }
+
 
 
 //--------------------------------------------------------------
@@ -667,7 +720,7 @@ void ofApp::draw() {
     }
     // more info
     drawInfo();
-    // SYSTEM TSATUS
+    // SYSTEM STATUS
     if (sysStatEnabled == true) {
         int x = 10;
         int y = 50;
@@ -839,25 +892,43 @@ void ofApp::exit() {
 
 //--------------------------------------------------------------
 void grabberUpdateResize(int cidx) {
-    tvpCamView *cv = &camView[cidx];
-    tvpCamProf *cp = &camProfFpvExtra;
-    grabber[cidx].update();
-    if (grabber[cidx].isFrameNew() == false
-        || (cv->needCrop == false && cv->needResize == false)) {
-        return;
-    }
-    cv->resizedPixels = grabber[cidx].getPixels();
-    if (cv->needCrop == true) {
-        cv->resizedPixels.crop(cp->cropX, cp->cropY, cp->cropW, cp->cropH);
-    }
-    if (cv->needResize == true) {
+    tvpCamView* cv = &camView[cidx];
+        grabber[cidx].update();
+        if (grabber[cidx].isFrameNew() == false
+            || (cv->needCrop == false && cv->needResize == false)) {
+            return;
+        }
+        cv->resizedPixels = grabber[cidx].getPixels();
+        if (cv->needCrop == true) {
+            cv->resizedPixels.crop(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
+        }
+        if (cv->needResize == true) {
+            if (cv->isWide == true) {
+                cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT * 0.75);
+            }
+            else {
+                cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT);
+            }
+        }
+        cv->resizedImage.setFromPixels(cv->resizedPixels);
+}
+void grabberUpdateResizeMulti() {
+    tvpCamView* cv;
+
+    grabber[0].update();
+    if (grabber[0].isFrameNew() == false) return;
+    for (int i = 0; i < cameraNum; i++) {
+        cv = &camView[i];
+        cv->resizedPixels = grabber[0].getPixels();
+        cv->resizedPixels.crop(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
         if (cv->isWide == true) {
             cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT * 0.75);
-        } else {
+        }
+        else {
             cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT);
         }
+        cv->resizedImage.setFromPixels(cv->resizedPixels);
     }
-    cv->resizedImage.setFromPixels(cv->resizedPixels);
 }
 
 //--------------------------------------------------------------

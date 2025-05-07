@@ -1,6 +1,7 @@
 <system>
     <sysStat>1</sysStat>
     <tvpComport>COM5</tvpComport>
+    <allFrameDetect>0</allFrameDetect>
 </system>
 <view>
     <fullscreen>0</fullscreen>
