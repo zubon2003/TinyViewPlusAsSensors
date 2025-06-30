@@ -1,6 +1,6 @@
 <system>
     <sysStat>1</sysStat>
-    <tvpComport>COM5</tvpComport>
+    <tvpComport>COM7</tvpComport>
     <allFrameDetect>0</allFrameDetect>
 </system>
 <view>

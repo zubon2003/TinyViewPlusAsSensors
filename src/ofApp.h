@@ -13,7 +13,7 @@
 /* ---------- definitions ---------- */
 
 // system
-#define APP_VER         "v0.0.2 alpha1"
+#define APP_VER         "v0.0.3"
 
 #define DEBUG_ENABLED   false
 #define HELP_LINES      35  // must be <= OVLTXT_LINES
@@ -299,3 +299,6 @@ void drawOverlayMessage();
 
 // others
 void activateCursor();
+
+// serial status
+extern string serialStatusMessage;

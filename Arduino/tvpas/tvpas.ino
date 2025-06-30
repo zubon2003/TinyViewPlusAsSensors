@@ -27,10 +27,16 @@ Serial.begin(115200);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   if (Serial.available() > 0) {
     readByte = Serial.read();
+
+    // 1. Always perform the port operation
     PORTB = readByte;
     PORTC = (readByte >> 4);
-	}
+
+    // 2. Only when 0xFF is received, return 0xFF
+    if (readByte == 0xFF) {
+      Serial.write(0xFF);
+    }
+  }
 }

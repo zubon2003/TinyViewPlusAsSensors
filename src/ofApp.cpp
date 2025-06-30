@@ -47,8 +47,9 @@ ofxTrueTypeFontUC myFontOvlayP, myFontOvlayP2x, myFontOvlayM;
 int overlayMode;
 int ovlayMsgTimer;
 string ovlayMsgString;
+string serialStatusMessage = "Serial port not tested yet.";
 
-//For Rotorhazard
+// For Rotorhazard
 uint8_t serialSendByte;
 float sensorStartTime[4];
 float sensorEndTime[4];
@@ -208,8 +209,68 @@ void setupCamCheck() {
     reloadCameras();
 }
 
+bool testSerialConnection() {
+    vector<ofSerialDeviceInfo> deviceList = tvpSerial.getDeviceList();
+    bool portExists = false;
+    for (auto& dev : deviceList) {
+        if (dev.getDevicePath() == tvpComport) {
+            portExists = true;
+            break;
+        }
+    }
+
+    if (!portExists) {
+        serialStatusMessage = "Error: COM port '" + tvpComport + "' not found.";
+        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
+        if(tvpSerial.isInitialized()) tvpSerial.close();
+        return false;
+    }
+
+    if (tvpSerial.isInitialized()) {
+        tvpSerial.close();
+    }
+
+    if (!tvpSerial.setup(tvpComport, 115200)) {
+        serialStatusMessage = "Error: Failed to open COM port '" + tvpComport + "'. It might be in use.";
+        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
+        return false;
+    }
+
+    tvpSerial.flush(true, true); 
+    
+    tvpSerial.writeByte((unsigned char)0xFF);
+    
+    ofSleepMillis(50); 
+
+    float timeout = ofGetElapsedTimef() + 0.5f;
+    bool ackReceived = false;
+    while (ofGetElapsedTimef() < timeout) {
+        if (tvpSerial.available() > 0) {
+            if (tvpSerial.readByte() == 0xFF) {
+                ackReceived = true;
+                break;
+            }
+        }
+        ofSleepMillis(1);
+    }
+
+    if (ackReceived) {
+        serialStatusMessage = "Serial connection OK on " + tvpComport;
+        ofLog(OF_LOG_NOTICE) << serialStatusMessage.c_str();
+        return true;
+    } else {
+        serialStatusMessage = "Error: No response from device on '" + tvpComport + "'.";
+        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
+        tvpSerial.close();
+        return false;
+    }
+}
+
 //--------------------------------------------------------------
 void reloadCameras() {
+    if (testSerialConnection() == false) {
+        return;
+    }
     // clear
     for (int i = 0; i < cameraNum; i++) {
         grabber[i].close();
@@ -329,7 +390,12 @@ void setupMain() {
         camView[i].aruco.setup2d(CAMERA_WIDTH, CAMERA_HEIGHT);
     }
     //For RotorHazard
-    tvpSerial.setup(tvpComport, 115200);
+    if (!tvpSerial.isInitialized()) {
+        serialStatusMessage = "Error: Serial port is not ready. Cannot start the race.";
+        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
+        tvpScene = SCENE_CAMS;
+        return;
+    }
     for (int i = 0; i < cameraNum; i++) {
         camView[i].markerDetectStrengthLast = 0b00;
         camView[i].markerOutput = 0b00;
@@ -371,6 +437,11 @@ void updateCamCheck() {
 
 //--------------------------------------------------------------
 void ofApp::update() {
+    if (tvpSerial.isInitialized()) {
+        while (tvpSerial.available() > 0) {
+            tvpSerial.readByte();
+        }
+    }
     // scene
     if (tvpScene == SCENE_INIT) {
         updateInit();
@@ -527,6 +598,16 @@ void drawCamCheck() {
     // footer
     font = &myFontOvlayP;
     ofSetColor(myColorYellow);
+
+    if (!serialStatusMessage.empty()) {
+        ofColor msgColor = (serialStatusMessage.find("Error") != string::npos) ? myColorAlert : myColorWhite;
+        ofSetColor(msgColor);
+        str = serialStatusMessage;
+        x = (ofGetWidth() - font->stringWidth(str)) / 2;
+        y = y + h + margin;
+        font->drawString(str, x, y);
+        y += margin;
+    }
 
     str = "If all devices are found, press Space key to continue.";
     x = (ofGetWidth() - font->stringWidth(str)) / 2;
