@@ -1,14 +1,19 @@
 
 #include <Keyboard.h>
-#define START_BUTTON_DURATION 1100
-#define KEY_RELEASE 30
-#define BUTTON_DEBOUNCE_TIME 200
+#define START_BUTTON_DURATION 1100          // 0.8秒（ミリ秒）
+#define KEY_RELEASE 30                     // 押してから10ms後にキーをリリース
+#define BUTTON_DEBOUNCE_TIME 200                  // 500msの間は同一ボタンの入力を受け付けない
+#define TVP_DEBOUNCE_TIME 200                     // 500msの間は同一TVPの入力を受け付けない
 
 enum ButtonType { LAP1, LAP2, LAP3, START, CANCEL1, CANCEL2, CANCEL3 };
 const uint8_t ButtonPin[] = { 11, 15, 16, 20, 10, 14, 17 };
 
 uint32_t buttonDebounceMillis[sizeof(ButtonPin) / sizeof(ButtonPin[0])] = { 0 };
 bool buttonWaitDebounce[sizeof(ButtonPin) / sizeof(ButtonPin[0])] = { false };
+
+#define NUM_TVP_CHANNELS 4
+uint32_t tvpDebounceMillis[NUM_TVP_CHANNELS] = { 0 };
+bool tvpWaitDebounce[NUM_TVP_CHANNELS] = { false };
 
 uint32_t keyReleaseMillis = 0;
 
@@ -22,11 +27,11 @@ void setup() {
   Keyboard.begin();
   readByte = 0;
   Serial.ignoreFlowControl();
-  Serial.begin(115200);    
+  Serial.begin(115200);
 }
 
 void loop() {
-// put your main code here, to run repeatedly:
+  // put your main code here, to run repeatedly:
   if (isButtonPushed(START)) startSequence();
 
   processButton(LAP1, KEY_LEFT_ALT, '1');
@@ -36,17 +41,31 @@ void loop() {
   processButton(CANCEL2, KEY_LEFT_CTRL, '2');
   processButton(CANCEL3, KEY_LEFT_CTRL, '3');
 
+  // TVPのデバウンス解除処理
+  for (uint8_t i = 0; i < NUM_TVP_CHANNELS; i++) {
+    if (tvpWaitDebounce[i] && millis() > tvpDebounceMillis[i]) {
+      tvpWaitDebounce[i] = false;
+    }
+  }
+
   if (Serial.available() > 0) {
     readByte = Serial.read();
     if (readByte == 0xFF) Serial.write(0xFF);
     char keyChar;
+    uint8_t tempReadByte = readByte;
 
-    for (uint8_t i = 0;i <= 3;i++){
-      readByte = readByte >> i*2;
+    for (uint8_t i = 0; i < NUM_TVP_CHANNELS; i++) {
       keyChar = '0' + i + 1;
-      if ((readByte && mask) > 0) processTvp(keyChar);
-    }  
-	}
+      if ((tempReadByte & mask) > 0) {
+        if (!tvpWaitDebounce[i]) {
+          processTvp(keyChar);
+          tvpWaitDebounce[i] = true;
+          tvpDebounceMillis[i] = millis() + TVP_DEBOUNCE_TIME;
+        }
+      }
+      tempReadByte = tempReadByte >> 2;
+    }
+  }
 
   if ((millis() > keyReleaseMillis) && keyReleaseMillis > 0) Keyboard.releaseAll();
 }
