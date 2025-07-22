@@ -9,11 +9,12 @@
 #include "ofxZxing.h"
 #include "ofxJoystick.h"
 #include "ofxXmlSettings.h"
+#include "ofFileUtils.h" // Add this line
 
 /* ---------- definitions ---------- */
 
 // system
-#define APP_VER         "v0.0.3"
+#define APP_VER         "v1.0.0 beta1"
 
 #define DEBUG_ENABLED   false
 #define HELP_LINES      35  // must be <= OVLTXT_LINES
@@ -35,10 +36,26 @@
 #define SETTINGS_FILE   "settings.xml"
 #define SNM_SYS_STAT    "system:sysStat"
 #define SNM_DTCTALL_FRM "system:allFrameDetect"
-#define TVP_COMPORT     "system:tvpComport"
 #define SNM_VIEW_FLLSCR "view:fullscreen"
 #define SNM_VIEW_CAMTRM "view:camTrim"
 #define SNM_VIEW_CAMFRM "view:camFrame"
+#define SNM_LOG_ENABLED "system:logEnabled"
+#define SNM_RACE_ARMODE "race:arMode"
+
+// OSC
+#define SNM_OSC_HOST "osc:host"
+#define SNM_OSC_PORT "osc:port"
+#define SNM_OSC_RECEIVE_HOST "osc:receiveHost" // 新しい設定名
+#define SNM_OSC_RECEIVE_PORT "osc:receivePort" // 新しい設定名
+#define SNM_ARUCO_MIN_SIZE "aruco:minSize"
+#define SNM_FLICKER_THRESHOLD "aruco:flickerThreshold"
+
+// AR lap timer
+#define ARAP_MODE_NORM  0
+#define ARAP_MODE_MIDDLE 1
+#define ARAP_MODE_LOOSE 2
+#define ARAP_MODE_ULOOSE 3
+#define DFLT_ARAP_MODE  ARAP_MODE_NORM
 
 // pilots
 #define PILOTS_FILE     "pilots/pilots.xml"
@@ -135,10 +152,14 @@
 #define SND_FINISH_FILE "system/finish.wav"
 #define SND_NOTIFY_FILE "system/notify.wav"
 #define SND_CANCEL_FILE "system/cancel.wav"
+// OSC
+#define OSC_DEFAULT_HOST "localhost"
+#define OSC_DEFAULT_PORT 8000
 // AR lap timer
 #define ARAP_MODE_NORM  0
-#define ARAP_MODE_LOOSE 1
-#define ARAP_MODE_OFF   2
+#define ARAP_MODE_MIDDLE 1
+#define ARAP_MODE_LOOSE 2
+#define ARAP_MODE_ULOOSE 3
 #define DFLT_ARAP_MODE  ARAP_MODE_NORM
 #define DFLT_ARAP_RLAPS 10
 #define DFLT_ARAP_RSECS 0
@@ -147,7 +168,6 @@
 #define DFLT_ARAP_LAPTO false
 #define ARAP_MKR_FILE   "system/marker.xml"
 #define ARAP_RESULT_DIR "results/"
-#define ARAP_MNUM_THR   2
 #define ARAP_MAX_RLAPS  10000
 #define ARAP_MAX_MNLAP  100
 #define ARAP_MAX_RSECS  36000
@@ -201,11 +221,10 @@ public:
     bool enoughMarkers;
     int flickerCount;
     int flickerValidCount;
-    //For RotorHazard
-    uint8_t markerDetectStrengthLast;
-    uint8_t markerOutput;
     bool rssiOutput;
-    float markerEndTime;
+    bool isDroneInGate;
+    int frequency;   // 追加: カメラの周波数 (MHz)
+    float loopTime;  // 追加: このカメラの処理にかかった時間 (ミリ秒)
 };
 
 
@@ -240,65 +259,149 @@ public:
     void dragEvent(ofDragInfo dragInfo);
     void gotMessage(ofMessage msg);
     void exit();
+
+    // New functions for frequency management
+    void loadFrequencies();
+    void saveFrequencies();
+    int calculate_pseudo_rssi(int camIndex);
+    void onStageReady(ofxOscMessage& m); // 追加
+
+    // Main setup and race logic
+    void setupMain();
+    void initRaceVars();
+    void startRace();
+
+    // Splash and Camera Check
+    void setupInit();
+    void setupCamCheck();
+    void updateInit();
+    void updateCamCheck();
+    void drawInit();
+    void drawCamCheck();
+    void reloadCameras();
+
+    // Configuration and System
+    void initConfig();
+    void toggleSysStat();
+    void toggleFullscreen();
+
+    // Overlay and UI
+    void setOverlayMode(int mode);
+    void loadOverlayFont();
+    void initOverlayMessage();
+    void setOverlayMessage(string msg);
+    void drawOverlayMessage();
+    void drawOverlayMessageCore(ofxTrueTypeFontUC *font, string msg);
+    void drawHelp();
+    void drawHelpBody(int line);
+    void drawStringBlock(ofxTrueTypeFontUC* font, string text, int xblock, int yline, int align, int blocks, int lines);
+    void drawLineBlock(int xblock1, int xblock2, int yline, int blocks, int lines);
+    void drawULineBlock(int xblock1, int xblock2, int yline, int blocks, int lines);
+
+    // Drawing and View
+    void drawCameraImage(int camidx);
+    void drawCameraARMarker(int idx, bool isSub);
+    void drawCamera(int idx);
+    void drawInfo();
+    void drawStringWithShadow(ofxTrueTypeFontUC* font, ofColor color, ofColor bgcolor, string str, int x, int y);
+    void setViewParams();
+    int calcViewParam(int target, int current, int steps);
+    void updateViewParams();
+    void grabberUpdateResize(int cidx);
+    void grabberUpdateResizeMulti();
+    void setupColors();
+    void activateCursor();
+
+    // Input Handlers
+    void keyPressedOverlayHelp(int key);
+    void keyPressedOverlayMessage(int key);
+    void keyPressedOverlayNone(int key);
+    void keyPressedCamCheck(int key);
+
+    //Aruco
+    void setMinDetectSize();
+
+private:
+    // system
+    int camCheckCount;
+    int tvpScene;
+    bool sysStatEnabled;
+    bool logEnabled; 
+
+    // view
+    ofVideoGrabber grabber[CAMERA_MAXNUM];
+    ofColor myColorYellow, myColorWhite, myColorLGray, myColorDGray, myColorAlert;
+    ofColor myColorBGDark, myColorBGMiddle, myColorBGLight;
+    ofxTrueTypeFontUC myFontNumber, myFontLabel, myFontLap, myFontLapHist;
+    ofxTrueTypeFontUC myFontNumberSub, myFontLabelSub, myFontLapSub;
+    ofxTrueTypeFontUC myFontInfo1m, myFontInfo1p, myFontInfoWatch;
+    ofImage logoLargeImage, logoSmallImage;
+    ofImage wallImage;
+    float wallRatio;
+    int wallDrawWidth;
+    int wallDrawHeight;
+    tvpCamView camView[CAMERA_MAXNUM];
+    int cameraNum;
+    int cameraNumVisible;
+    bool cameraTrimEnabled;
+    bool fullscreenEnabled;
+    bool cameraFrameEnabled;
+    int hideCursorTimer;
+    bool isMultiView;
+    // AR lap timer
+    ofSoundPlayer beepSound, beep3Sound, notifySound, cancelSound;
+    ofSoundPlayer countSound, finishSound;
+    ofFile resultsFile;
+    bool raceStarted;
+    float elapsedTime;
+    int raceResultTimer;
+    bool frameTick;
+    // overlay
+    ofxTrueTypeFontUC myFontOvlayP, myFontOvlayP2x, myFontOvlayM;
+    int overlayMode;
+    int ovlayMsgTimer;
+    string ovlayMsgString;
+    bool gateDetectAllFrames;
+
+    // OSC Communication
+    ofxOscSender oscSender;
+    ofxOscReceiver oscReceiver; // OSC 受信機
+    string oscHost;
+    int oscPort;
+    string oscReceiveHost; // OSC 受信ホスト
+    int oscReceivePort;    // OSC 受信ポート
+
+    // Frequency settings
+    ofxXmlSettings frequencyXml;
+    std::map<int, int> cameraFrequencyMap;
+    std::vector<int> activeCameraIndices;
+
+    // Race start time for lap_time calculation
+    float raceStartTime;
+
+    // Heartbeat timer
+    float lastHeartbeatTime;
+
+    // Settings and Camera Profile
+    ofxXmlSettings xmlSettings;
+    ofxXmlSettings xmlCamProfFpv;
+    ofxXmlSettings xmlPilots;
+    tvpCamProf camProfFpvExtra;
+
+    // ArUco settings
+    int arucoMinSize;
+    int arLapMode;
+    int arMarkerNumThreshold;
+    int flickerThreshold;
+
+    // Custom functions for settings and camera profiles
+    void loadSettingsFile();
+    void loadCameraProfileFile();
+    void saveSettingsFile();
+    void toggleLog();
+    void toggleARLap();
+    void toggleGateDetectFrequency(); // Add this line
+    void changeFlickerThreshold(int val);
+    void changeArucoMinSize(int val);
+    void updateArLapModeSettings();
 };
-
-// -- splash --
-void setupInit();
-void loadSettingsFile();
-void saveSettingsFile();
-void loadCameraProfileFile();
-void updateInit();
-void drawInit();
-// -- camera setup --
-void setupCamCheck();
-void updateCamCheck();
-void drawCamCheck();
-void keyPressedCamCheck(int);
-void reloadCameras();
-// -- main --
-// common
-void initConfig();
-void toggleSysStat();
-// view
-void grabberUpdateResize(int);
-void grabberUpdateResizeMulti();
-void toggleFullscreen();
-void setupColors();
-void setViewParams();
-int calcViewParam(int, int, int);
-void updateViewParams();
-
-// draw
-void drawCameraImage(int);
-void drawCameraARMarker(int, bool);
-void drawCamera(int);
-void drawInfo();
-void drawStringWithShadow(ofxTrueTypeFontUC*, ofColor, ofColor, string, int, int);
-// input
-void keyPressedOverlayHelp(int);
-void keyPressedOverlayHelp(int);
-void keyPressedOverlayNone(int);
-// race
-void initRaceVars();
-void startRace();
-
-// overlay - common
-void setOverlayMode(int);
-void loadOverlayFont();
-void drawStringBlock(ofxTrueTypeFontUC*, string, int , int, int, int, int);
-void drawLineBlock(int, int, int, int, int);
-void drawULineBlock(int, int, int, int, int);
-// overlay - help
-void drawHelp();
-void drawHelpBody(int);
-// overlay - message
-void initOverlayMessage();
-void setOverlayMessage(string);
-void drawOverlayMessageCore(ofxTrueTypeFontUC*, string);
-void drawOverlayMessage();
-
-// others
-void activateCursor();
-
-// serial status
-extern string serialStatusMessage;

@@ -1,10 +1,23 @@
 <system>
     <sysStat>1</sysStat>
-    <tvpComport>COM9</tvpComport>
-    <allFrameDetect>0</allFrameDetect>
+    <logEnabled>1</logEnabled>
+    <allFrameDetect>1</allFrameDetect>
 </system>
 <view>
     <fullscreen>0</fullscreen>
     <camTrim>0</camTrim>
     <camFrame>0</camFrame>
 </view>
+<aruco>
+    <minSize>5</minSize>
+    <flickerThreshold>3</flickerThreshold>
+</aruco>
+<race>
+    <arMode>2</arMode>
+</race>
+<osc>
+    <host>localhost</host>
+    <port>8000</port>
+    <receiveHost>127.0.0.1</receiveHost>
+    <receivePort>8001</receivePort>
+</osc>

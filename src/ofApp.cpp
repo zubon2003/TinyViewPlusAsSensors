@@ -1,66 +1,18 @@
 // charcter encoding is UTF-8
 
 #include "ofApp.h"
+#include <chrono> // 時間測定のために追加
 #ifdef TARGET_WIN32
 #include <sapi.h>
 #include <atlcomcli.h>
 #endif /* TARGET_WIN32 */
 
-/* ---------- variables ---------- */
 
-// system
-int camCheckCount;
-int tvpScene;
-ofxXmlSettings xmlSettings, xmlCamProfFpv, xmlPilots;
-bool sysStatEnabled;
-// view
-ofVideoGrabber grabber[CAMERA_MAXNUM];
-ofColor myColorYellow, myColorWhite, myColorLGray, myColorDGray, myColorAlert;
-ofColor myColorBGDark, myColorBGMiddle, myColorBGLight;
-ofxTrueTypeFontUC myFontNumber, myFontLabel, myFontLap, myFontLapHist;
-ofxTrueTypeFontUC myFontNumberSub, myFontLabelSub, myFontLapSub;
-ofxTrueTypeFontUC myFontInfo1m, myFontInfo1p, myFontInfoWatch;
-ofImage logoLargeImage, logoSmallImage;
-ofImage wallImage;
-float wallRatio;
-int wallDrawWidth;
-int wallDrawHeight;
-tvpCamProf camProfFpvExtra;
-tvpCamView camView[CAMERA_MAXNUM];
-int cameraNum;
-int cameraNumVisible;
-bool cameraTrimEnabled;
-bool fullscreenEnabled;
-bool cameraFrameEnabled;
-int hideCursorTimer;
-bool isMultiView;
-// AR lap timer
-ofSoundPlayer beepSound, beep3Sound, notifySound, cancelSound;
-ofSoundPlayer countSound, finishSound;
-ofFile resultsFile;
-bool raceStarted;
-float elapsedTime;
-int raceResultTimer;
-bool frameTick;
-// overlay
-ofxTrueTypeFontUC myFontOvlayP, myFontOvlayP2x, myFontOvlayM;
-int overlayMode;
-int ovlayMsgTimer;
-string ovlayMsgString;
-string serialStatusMessage = "Serial port not tested yet.";
 
-// For Rotorhazard
-uint8_t serialSendByte;
-float sensorStartTime[4];
-float sensorEndTime[4];
 
-ofSerial tvpSerial;
-string tvpComport;
 
-// Perform gate detection on all frames (true = all frames, false = every two frames).
-bool gateDetectAllFrames;
 //--------------------------------------------------------------
-void setupInit() {
+void ofApp::setupInit() {
     // system
     ofSetEscapeQuitsApp(false);
     ofDirectory dir;
@@ -68,113 +20,231 @@ void setupInit() {
         // macOS binary release
         ofSetDataPathRoot("../Resources/data");
     }
-    sysStatEnabled = DFLT_SYS_STAT;
+    this->sysStatEnabled = DFLT_SYS_STAT;
     // scene
-    tvpScene = SCENE_INIT;
+    this->tvpScene = SCENE_INIT;
     ofResetElapsedTimeCounter();
     // screen
     ofSetWindowTitle("Tiny View Plus As Rssi Sensors");
     ofBackground(0, 0, 0);
     ofSetVerticalSync(VERTICAL_SYNC);
     ofSetFrameRate(FRAME_RATE);
-    myFontNumber.load(FONT_P_FILE, NUMBER_HEIGHT);
-    myFontLabel.load(FONT_P_FILE, LABEL_HEIGHT);
-    myFontLap.load(FONT_P_FILE, LAP_HEIGHT);
-    myFontLapHist.load(FONT_P_FILE, LAPHIST_HEIGHT);
-    myFontNumberSub.load(FONT_P_FILE, NUMBER_HEIGHT / 2);
-    myFontLabelSub.load(FONT_P_FILE, LABEL_HEIGHT / 2);
-    myFontLapSub.load(FONT_P_FILE, LAP_HEIGHT / 2);
-    myFontInfo1m.load(FONT_M_FILE, INFO_HEIGHT);
-    myFontInfo1p.load(FONT_P_FILE, INFO_HEIGHT);
-    myFontInfoWatch.load(FONT_M_FILE, WATCH_HEIGHT);
-    loadOverlayFont();
-    cameraTrimEnabled = DFLT_CAM_TRIM;
-    fullscreenEnabled = DFLT_FSCR_ENBLD;
-    cameraFrameEnabled = DFLT_CAM_FRAMED;
+    this->myFontNumber.load(FONT_P_FILE, NUMBER_HEIGHT);
+    this->myFontLabel.load(FONT_P_FILE, LABEL_HEIGHT);
+    this->myFontLap.load(FONT_P_FILE, LAP_HEIGHT);
+    this->myFontLapHist.load(FONT_P_FILE, LAPHIST_HEIGHT);
+    this->myFontNumberSub.load(FONT_P_FILE, NUMBER_HEIGHT / 2);
+    this->myFontLabelSub.load(FONT_P_FILE, LABEL_HEIGHT / 2);
+    this->myFontLapSub.load(FONT_P_FILE, LAP_HEIGHT / 2);
+    this->myFontInfo1m.load(FONT_M_FILE, INFO_HEIGHT);
+    this->myFontInfo1p.load(FONT_P_FILE, INFO_HEIGHT);
+    this->myFontInfoWatch.load(FONT_M_FILE, WATCH_HEIGHT);
+    this->loadOverlayFont();
+    this->cameraTrimEnabled = DFLT_CAM_TRIM;
+    this->fullscreenEnabled = DFLT_FSCR_ENBLD;
+    this->cameraFrameEnabled = DFLT_CAM_FRAMED;
     // splash
-    logoLargeImage.load(LOGO_LARGE_FILE);
+    this->logoLargeImage.load(LOGO_LARGE_FILE);
     // logo
-    logoSmallImage.load(LOGO_SMALL_FILE);
+    this->logoSmallImage.load(LOGO_SMALL_FILE);
     // view common
-    setupColors();
-    hideCursorTimer = HIDECUR_TIME;
+    this->setupColors();
+    this->hideCursorTimer = HIDECUR_TIME;
     // overlay
-    setOverlayMode(OVLMODE_NONE);
-    initOverlayMessage();
+    this->setOverlayMode(OVLMODE_NONE);
+    this->initOverlayMessage();
     // AR lap timer
-    beepSound.load(SND_BEEP_FILE);
-    beep3Sound.load(SND_BEEP3_FILE);
-    countSound.load(SND_COUNT_FILE);
-    finishSound.load(SND_FINISH_FILE);
-    notifySound.load(SND_NOTIFY_FILE);
-    cancelSound.load(SND_CANCEL_FILE);
-    raceStarted = false;
-    elapsedTime = 0;
-    raceResultTimer = -1;
+    this->beepSound.load(SND_BEEP_FILE);
+    this->beep3Sound.load(SND_BEEP3_FILE);
+    this->countSound.load(SND_COUNT_FILE);
+    this->finishSound.load(SND_FINISH_FILE);
+    this->notifySound.load(SND_NOTIFY_FILE);
+    this->cancelSound.load(SND_CANCEL_FILE);
+    this->raceStarted = false;
+    this->elapsedTime = 0;
+    this->raceResultTimer = -1;
+    this->arLapMode = DFLT_ARAP_MODE;
+    this->flickerThreshold = 3;
     // extra camera
-    camProfFpvExtra.enabled = false;
-    //SERIAL
-    serialSendByte = 0;
+    this->camProfFpvExtra.enabled = false;
     //
-    gateDetectAllFrames = DTCT_ALL_FRAME;
+    this->gateDetectAllFrames = DTCT_ALL_FRAME;
 }
 
 //--------------------------------------------------------------
-void loadSettingsFile() {
+void ofApp::loadSettingsFile() {
     xmlSettings.loadFile(SETTINGS_FILE);
 
     // SYSTEM
-    // COMPORT
-    tvpComport = xmlSettings.getValue(TVP_COMPORT, tvpComport);
     // system statistics
-    sysStatEnabled = xmlSettings.getValue(SNM_SYS_STAT, sysStatEnabled);
-    // serial
+    this->sysStatEnabled = xmlSettings.getValue(SNM_SYS_STAT, this->sysStatEnabled);
+    this->logEnabled = xmlSettings.getValue(SNM_LOG_ENABLED, true);
 
     // VIEW
     // fullscreen
-    fullscreenEnabled = xmlSettings.getValue(SNM_VIEW_FLLSCR, fullscreenEnabled);
+    this->fullscreenEnabled = xmlSettings.getValue(SNM_VIEW_FLLSCR, this->fullscreenEnabled);
     // camera view trimming
-    cameraTrimEnabled = xmlSettings.getValue(SNM_VIEW_CAMTRM, cameraTrimEnabled);
+    this->cameraTrimEnabled = xmlSettings.getValue(SNM_VIEW_CAMTRM, this->cameraTrimEnabled);
     // camera frame visibility
-    cameraFrameEnabled = xmlSettings.getValue(SNM_VIEW_CAMFRM, cameraFrameEnabled);
+    this->cameraFrameEnabled = xmlSettings.getValue(SNM_VIEW_CAMFRM, this->cameraFrameEnabled);
+
+    // OSC
+    this->oscHost = xmlSettings.getValue(SNM_OSC_HOST, OSC_DEFAULT_HOST);
+    this->oscPort = xmlSettings.getValue(SNM_OSC_PORT, OSC_DEFAULT_PORT);
+    this->oscReceiveHost = xmlSettings.getValue(SNM_OSC_RECEIVE_HOST, "127.0.0.1"); // デフォルト値
+    this->oscReceivePort = xmlSettings.getValue(SNM_OSC_RECEIVE_PORT, 8001); // デフォルト値
+
+    // ArUco
+    this->arucoMinSize = xmlSettings.getValue(SNM_ARUCO_MIN_SIZE, 5);
+    this->arLapMode = xmlSettings.getValue(SNM_RACE_ARMODE, this->arLapMode);
+    this->flickerThreshold = xmlSettings.getValue(SNM_FLICKER_THRESHOLD, this->flickerThreshold);
 
     //GATE DETECT FREQUENCY
-    gateDetectAllFrames = xmlSettings.getValue(SNM_DTCTALL_FRM, gateDetectAllFrames);
+    this->gateDetectAllFrames = xmlSettings.getValue(SNM_DTCTALL_FRM, this->gateDetectAllFrames);
 }
 
-void saveSettingsFile() {
+void ofApp::saveSettingsFile() {
     // SYSTEM
-    // 
-    xmlSettings.setValue(TVP_COMPORT, tvpComport);
     // system statistics
-    xmlSettings.setValue(SNM_SYS_STAT, sysStatEnabled);
+    xmlSettings.setValue(SNM_SYS_STAT, this->sysStatEnabled);
+    xmlSettings.setValue(SNM_LOG_ENABLED, this->logEnabled);
 
     // VIEW
     // fullscreen
-    xmlSettings.setValue(SNM_VIEW_FLLSCR, fullscreenEnabled);
+    xmlSettings.setValue(SNM_VIEW_FLLSCR, this->fullscreenEnabled);
     // camera view trimming
-    xmlSettings.setValue(SNM_VIEW_CAMTRM, cameraTrimEnabled);
+    xmlSettings.setValue(SNM_VIEW_CAMTRM, this->cameraTrimEnabled);
     // camera frame visibility
-    xmlSettings.setValue(SNM_VIEW_CAMFRM, cameraFrameEnabled);
+    xmlSettings.setValue(SNM_VIEW_CAMFRM, this->cameraFrameEnabled);
 
+    // OSC
+    xmlSettings.setValue(SNM_OSC_HOST, this->oscHost);
+    xmlSettings.setValue(SNM_OSC_PORT, this->oscPort);
+    xmlSettings.setValue(SNM_OSC_RECEIVE_HOST, this->oscReceiveHost);
+    xmlSettings.setValue(SNM_OSC_RECEIVE_PORT, this->oscReceivePort);
 
-    xmlSettings.setValue(SNM_DTCTALL_FRM, gateDetectAllFrames);
+    // ArUco
+    xmlSettings.setValue(SNM_ARUCO_MIN_SIZE, this->arucoMinSize);
+    xmlSettings.setValue(SNM_RACE_ARMODE, this->arLapMode);
+    xmlSettings.setValue(SNM_FLICKER_THRESHOLD, this->flickerThreshold);
+
+    xmlSettings.setValue(SNM_DTCTALL_FRM, this->gateDetectAllFrames);
 
     xmlSettings.saveFile(SETTINGS_FILE);
 }
 
 //--------------------------------------------------------------
-void loadCameraProfileFile() {
-    if (xmlCamProfFpv.loadFile(CAM_FPV_FILE) == false) {
+// New functions for frequency management and OSC communication
+//--------------------------------------------------------------
+
+void ofApp::loadFrequencies() {
+    string filename = "frequencies.xml";
+    if (frequencyXml.loadFile(filename)) {
+        if (this->logEnabled) ofLogNotice("ofApp::loadFrequencies") << filename << " loaded.";
+        
+        cameraFrequencyMap.clear();
+        
+        frequencyXml.pushTag("frequencies");
+        int numCameras = frequencyXml.getNumTags("camera");
+        for (int i = 0; i < numCameras; ++i) {
+            frequencyXml.pushTag("camera", i);
+            int camIndex = frequencyXml.getValue("index", -1);
+            int channel = frequencyXml.getValue("channel", 0);
+            if (camIndex != -1) { // Allow 0 as a valid channel for disabling
+                cameraFrequencyMap[camIndex] = channel;
+            }
+            frequencyXml.popTag();
+        }
+        frequencyXml.popTag(); // Corresponding popTag
+
+    } else {
+        if (this->logEnabled) ofLogWarning("ofApp::loadFrequencies") << "Could not load " << filename << ". Using default values.";
+        
+        // Default values
+        cameraFrequencyMap[0] = 5800;
+        cameraFrequencyMap[1] = 5820;
+        cameraFrequencyMap[2] = 5840;
+        cameraFrequencyMap[3] = 5860;
+        
+        saveFrequencies(); // Save defaults to file
+    }
+
+    // Update active camera indices based on loaded/default frequencies
+    activeCameraIndices.clear();
+    for (int i = 0; i < CAMERA_MAXNUM; ++i) { // Iterate through all possible camera indices
+        if (cameraFrequencyMap.count(i) && cameraFrequencyMap[i] != 0) {
+            activeCameraIndices.push_back(i);
+        }
+    }
+    
+    // Log active camera indices
+    string activeCamsStr = "Active camera indices: ";
+    if (activeCameraIndices.empty()) {
+        activeCamsStr += "None";
+    } else {
+        for (int idx : activeCameraIndices) {
+            activeCamsStr += ofToString(idx) + " ";
+        }
+    }
+    if (this->logEnabled) ofLogNotice("ofApp::loadFrequencies") << activeCamsStr;
+
+    // Update cameraNumVisible based on active cameras
+    cameraNumVisible = static_cast<int>(activeCameraIndices.size());
+    if (this->logEnabled) ofLogNotice("ofApp::loadFrequencies") << cameraNumVisible << " cameras are active.";
+    this->setViewParams(); // Recalculate view parameters for active cameras
+}
+
+void ofApp::saveFrequencies() {
+    frequencyXml.clear();
+    frequencyXml.addTag("frequencies");
+    frequencyXml.pushTag("frequencies");
+
+    for (auto const& pair : cameraFrequencyMap) { // Modified loop
+        int camIndex = pair.first;
+        int channel = pair.second;
+        int tagNum = frequencyXml.addTag("camera");
+        frequencyXml.setValue("camera:index", camIndex, tagNum);
+        frequencyXml.setValue("camera:channel", channel, tagNum);
+    }
+    
+    frequencyXml.popTag();
+    frequencyXml.saveFile("frequencies.xml");
+    if (this->logEnabled) ofLogNotice("ofApp::saveFrequencies") << "Frequencies saved to frequencies.xml";
+}
+
+//--------------------------------------------------------------
+
+
+
+//--------------------------------------------------------------
+int ofApp::calculate_pseudo_rssi(int camIndex) {
+    // Simple pseudo-RSSI based on marker detection strength
+    // This can be refined based on actual marker size, distance, etc.
+    int anum = camView[camIndex].aruco.getNumMarkers();
+    int vnum = camView[camIndex].aruco.getNumMarkersValidGate();
+
+    if (vnum >= this->arMarkerNumThreshold) { // Valid gate markers detected
+        return 200; // Strong signal
+    } else if (anum >= this->arMarkerNumThreshold) { // Any markers detected
+        return 150; // Medium signal
+    } else { // No markers detected
+        return 50; // Weak/no signal
+    }
+}
+
+
+//--------------------------------------------------------------
+void ofApp::loadCameraProfileFile() {
+    if (this->xmlCamProfFpv.loadFile(CAM_FPV_FILE) == false) {
         return;
     }
-    tvpCamProf *p = &camProfFpvExtra;
-    ofxXmlSettings *s = &xmlCamProfFpv;
+    tvpCamProf *p = &this->camProfFpvExtra;
+    ofxXmlSettings *s = &this->xmlCamProfFpv;
     // load
     p->enabled = true;
     p->camnum = s->getValue(CFNM_CAMNUM, 1);
-    if (p->camnum > 1) isMultiView = true;
-    else isMultiView = false;
+    if (p->camnum > 1) this->isMultiView = true;
+    else this->isMultiView = false;
     p->name = s->getValue(CFNM_NAME, "tvp-no-named-camera");
     p->grabW = s->getValue(CFNM_GRAB_W, CAMERA_WIDTH);
     p->grabH = s->getValue(CFNM_GRAB_H, CAMERA_HEIGHT);
@@ -202,87 +272,27 @@ void loadCameraProfileFile() {
 
 
 //--------------------------------------------------------------
-void setupCamCheck() {
+void ofApp::setupCamCheck() {
     tvpScene = SCENE_CAMS;
     cameraNum = 0;
     camCheckCount = 0;
     reloadCameras();
 }
 
-bool testSerialConnection() {
-    vector<ofSerialDeviceInfo> deviceList = tvpSerial.getDeviceList();
-    bool portExists = false;
-    for (auto& dev : deviceList) {
-        if (dev.getDevicePath() == tvpComport) {
-            portExists = true;
-            break;
-        }
-    }
-
-    if (!portExists) {
-        serialStatusMessage = "Error: COM port '" + tvpComport + "' not found.";
-        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
-        if(tvpSerial.isInitialized()) tvpSerial.close();
-        return false;
-    }
-
-    if (tvpSerial.isInitialized()) {
-        tvpSerial.close();
-    }
-
-    if (!tvpSerial.setup(tvpComport, 115200)) {
-        serialStatusMessage = "Error: Failed to open COM port '" + tvpComport + "'. It might be in use.";
-        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
-        return false;
-    }
-
-    tvpSerial.flush(true, true); 
-    
-    tvpSerial.writeByte((unsigned char)0xFF);
-    
-    ofSleepMillis(50); 
-
-    float timeout = ofGetElapsedTimef() + 0.5f;
-    bool ackReceived = false;
-    while (ofGetElapsedTimef() < timeout) {
-        if (tvpSerial.available() > 0) {
-            if (tvpSerial.readByte() == 0xFF) {
-                ackReceived = true;
-                break;
-            }
-        }
-        ofSleepMillis(1);
-    }
-
-    if (ackReceived) {
-        serialStatusMessage = "Serial connection OK on " + tvpComport;
-        ofLog(OF_LOG_NOTICE) << serialStatusMessage.c_str();
-        return true;
-    } else {
-        serialStatusMessage = "Error: No response from device on '" + tvpComport + "'.";
-        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
-        tvpSerial.close();
-        return false;
-    }
-}
-
 //--------------------------------------------------------------
-void reloadCameras() {
-    if (testSerialConnection() == false) {
-        return;
-    }
+void ofApp::reloadCameras() {
     // clear
-    for (int i = 0; i < cameraNum; i++) {
+    for (int i = 0; i < this->cameraNum; i++) {
         grabber[i].close();
     }
     // load
     ofVideoGrabber tmpgrb;
     vector<ofVideoDevice> devices = tmpgrb.listDevices();
-    tvpCamProf* prof = &camProfFpvExtra;
+    tvpCamProf* prof = &this->camProfFpvExtra;
     int cidx = 0;
-    cameraNum = 0;
-    ofLog() << "Scanning camera... " << devices.size() << " devices";
-    if (isMultiView == false){
+    this->cameraNum = 0;
+    if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "Scanning camera... " << devices.size() << " devices found.";
+    if (this->isMultiView == false){
         for (size_t i = 0; i < devices.size(); i++) {
             int w, h, aw, ah;
             bool extra = false;
@@ -290,9 +300,11 @@ void reloadCameras() {
                 extra = true;
             }
             if (regex_search(devices[i].deviceName, regex("USB2.0 PC CAMERA")) == false && extra == false) {
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Skipping device " << devices[i].id << ": " << devices[i].deviceName << " (not 'USB2.0 PC CAMERA' and not extra profile)";
                 continue;
             }
             if (devices[i].bAvailable == false) {
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Skipping device " << devices[i].id << ": " << devices[i].deviceName << " (not available)";
                 continue;
             }
             grabber[cidx].setDeviceID(devices[i].id);
@@ -305,6 +317,7 @@ void reloadCameras() {
                 h = CAMERA_HEIGHT;
             }
             if (grabber[cidx].initGrabber(w, h) == false) {
+                if (this->logEnabled) ofLogWarning("ofApp::reloadCameras") << "  Failed to initialize grabber for device " << devices[i].id << ": " << devices[i].deviceName << " with resolution " << w << "x" << h;
                 continue;
             }
             if (extra == true) {
@@ -325,33 +338,52 @@ void reloadCameras() {
             camView[cidx].grabH = h;
             aw = grabber[cidx].getWidth();
             ah = grabber[cidx].getHeight();
-            ofLog() << "[" << devices[i].id << "] " << devices[i].deviceName;
-            ofLog() << "  preferred resolution: " << w << " x " << h;
-            ofLog() << "  actual resolution: " << aw << " x " << ah;
+            if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Initialized camera [" << devices[i].id << "] " << devices[i].deviceName;
+            if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "    Preferred resolution: " << w << " x " << h;
+            if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "    Actual resolution: " << aw << " x " << ah;
             if (extra == true) {
-                ofLog() << "  crop: "
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "    Crop: "
                     << prof->cropX << ", " << prof->cropY << ", "
                     << prof->cropW << ", " << prof->cropH;
             }
             cidx++;
-            cameraNum++;
-            if (cameraNum == CAMERA_MAXNUM) {
+            this->cameraNum++;
+            if (this->cameraNum == CAMERA_MAXNUM) {
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Reached maximum number of cameras (" << CAMERA_MAXNUM << "). Stopping scan.";
                 break;
             }
         }
     }
     else {
         for (size_t i = 0; i < devices.size(); i++) {
-            if (regex_search(devices[i].deviceName, regex(prof->name)) == false) continue;
-            if (devices[i].bAvailable == false) continue;
+            if (regex_search(devices[i].deviceName, regex(prof->name)) == false) {
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Skipping device " << devices[i].id << ": " << devices[i].deviceName << " (does not match multi-view profile name)";
+                continue;
+            }
+            if (devices[i].bAvailable == false) {
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Skipping device " << devices[i].id << ": " << devices[i].deviceName << " (not available)";
+                continue;
+            }
             //
-            cameraNum = prof->camnum;
+            this->cameraNum = prof->camnum;
+            if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "  Multi-view mode: Initializing " << this->cameraNum << " cameras from device " << devices[i].id << ": " << devices[i].deviceName;
 
-            for (int j = 0; j <= cameraNum-1; j++) {
+            for (int j = 0; j <= this->cameraNum-1; j++) {
                 grabber[j].setDeviceID(devices[i].id);
                 camView[j].grabW = prof->grabW;
                 camView[j].grabH = prof->grabH;
-                grabber[j].initGrabber(camView[j].grabW, camView[j].grabH);
+                // Only initialize the first grabber for multi-view
+                if (j == 0) {
+                    if (grabber[j].initGrabber(camView[j].grabW, camView[j].grabH) == false) {
+                        if (this->logEnabled) ofLogWarning("ofApp::reloadCameras") << "  Failed to initialize grabber for multi-view camera " << j << " from device " << devices[i].id << ": " << devices[i].deviceName;
+                        // If the first grabber fails, we cannot proceed with multi-view from this device.
+                        break; // Exit the inner loop
+                    }
+                    if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "    Multi-view master camera " << j << " initialized. Actual resolution: " << grabber[j].getWidth() << "x" << grabber[j].getHeight();
+                } else {
+                    // For subsequent virtual cameras, just set the grabW/H, no need to initGrabber again
+                    if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "    Multi-view virtual camera " << j << " configured.";
+                }
                 camView[j].needCrop = true;
                 camView[j].needResize = true;
                 camView[j].isWide = prof->isWide;
@@ -364,6 +396,9 @@ void reloadCameras() {
                 
                 camView[j].cropW = prof->cropW / 2;
                 camView[j].cropH = prof->cropH / 2;
+                if (this->logEnabled) ofLogNotice("ofApp::reloadCameras") << "    Multi-view camera " << j << " crop: "
+                    << camView[j].cropX << ", " << camView[j].cropY << ", "
+                    << camView[j].cropW << ", " << camView[j].cropH;
             }
             break;
         }
@@ -372,63 +407,81 @@ void reloadCameras() {
 }
 
 //--------------------------------------------------------------
-void setupMain() {
+void ofApp::setupMain() {
     // system
-    ofSetFullscreen(fullscreenEnabled);
+    ofSetFullscreen(this->fullscreenEnabled);
     tvpScene = SCENE_MAIN;
+    if (this->logEnabled) ofLogNotice("ofApp::setupMain") << "Scene set to SCENE_MAIN.";
     // camera
-    cameraNumVisible = cameraNum;
+    this->cameraNumVisible = this->cameraNum;
     setViewParams();
-    for (int i = 0; i < cameraNum; i++) {
+    for (int i = 0; i < this->cameraNum; i++) {
         camView[i].moveSteps = 1;
     }
     // AR laptimer
-    for (int i = 0; i < cameraNum; i++) {
+    for (int i = 0; i < this->cameraNum; i++) {
         camView[i].aruco.setUseHighlyReliableMarker(ARAP_MKR_FILE);
-        camView[i].aruco.setMinMaxMarkerDetectionSize(0.05, 0.25);
+        camView[i].aruco.setMinMaxMarkerDetectionSize(this->arucoMinSize*0.01f, 0.25);
         camView[i].aruco.setThreaded(true);
         camView[i].aruco.setup2d(CAMERA_WIDTH, CAMERA_HEIGHT);
     }
     //For RotorHazard
-    if (!tvpSerial.isInitialized()) {
-        serialStatusMessage = "Error: Serial port is not ready. Cannot start the race.";
-        ofLog(OF_LOG_ERROR) << serialStatusMessage.c_str();
-        tvpScene = SCENE_CAMS;
-        return;
-    }
-    for (int i = 0; i < cameraNum; i++) {
-        camView[i].markerDetectStrengthLast = 0b00;
-        camView[i].markerOutput = 0b00;
-        camView[i].markerEndTime = 0;
-        camView[i].rssiOutput = false;
+    for (int i = 0; i < this->cameraNum; i++) {
+        this->camView[i].rssiOutput = false;
+        this->camView[i].isDroneInGate = false;
     }
 
-    initRaceVars();
-    startRace();
+    this->initRaceVars();
+    this->startRace();
 }
 
 //--------------------------------------------------------------
 void ofApp::setup() {
-    setupInit();
-    loadSettingsFile();
-    loadCameraProfileFile();
-    saveSettingsFile();
-}
+    string logPath = ofFilePath::getAbsolutePath(ofFilePath::getEnclosingDirectory(ofFilePath::getCurrentExePath()) + "of_log.txt");
+    ofLogToFile(logPath, false); // ログをof_log.txtに出力し、既存のログをクリアします
+    this->setupInit();
+    this->loadSettingsFile();
+    this->updateArLapModeSettings();
+    this->loadCameraProfileFile();
+    this->saveSettingsFile();
 
-//--------------------------------------------------------------
-void updateInit() {
-    if (ofGetElapsedTimeMillis() >= 3000) {
-        setupCamCheck();
+    // Initialize OSC Sender
+    oscSender.setup(oscHost, oscPort);
+    if (this->logEnabled) ofLogNotice("ofApp::setup") << "OSC sender setup to " << oscHost << ":" << oscPort;
+
+    // Initialize OSC Receiver
+    oscReceiver.setup(oscReceivePort);
+    if (this->logEnabled) ofLogNotice("ofApp::setup") << "OSC receiver listening on port " << oscReceivePort;
+
+    // Load frequency settings
+    loadFrequencies();
+
+    // 各カメラの周波数を初期化する例
+    // ここで、各 camView[camIdx].frequency に適切な値を設定してください。
+    // 例:
+    // camView[0].frequency = 5658;
+    // camView[1].frequency = 5695;
+    // ...
+    for (int i = 0; i < CAMERA_MAXNUM; ++i) { // CAMERA_MAXNUM は定義済みと仮定
+        camView[i].frequency = 0; // デフォルト値。実際の周波数に置き換えてください。
+        camView[i].loopTime = 0.0f; // 初期化
     }
 }
 
 //--------------------------------------------------------------
-void updateCamCheck() {
-    for (int i = 0; i < cameraNum; i++) {
+void ofApp::updateInit() {
+    if (ofGetElapsedTimeMillis() >= 3000) {
+        this->setupCamCheck();
+    }
+}
+
+//--------------------------------------------------------------
+void ofApp::updateCamCheck() {
+    for (int i = 0; i < this->cameraNum; i++) {
         grabber[i].update();
     }
     if (camCheckCount > 180) {
-        reloadCameras();
+        this->reloadCameras();
         camCheckCount = 0;
         return;
     }
@@ -437,120 +490,237 @@ void updateCamCheck() {
 
 //--------------------------------------------------------------
 void ofApp::update() {
-    if (tvpSerial.isInitialized()) {
-        while (tvpSerial.available() > 0) {
-            tvpSerial.readByte();
-        }
-    }
     // scene
     if (tvpScene == SCENE_INIT) {
-        updateInit();
+        this->updateInit();
         return;
     } else if (tvpScene == SCENE_CAMS) {
-        updateCamCheck();
+        this->updateCamCheck();
         return;
     }
     // timer
-    if (raceStarted == true) elapsedTime = ofGetElapsedTimef();
+    if (this->raceStarted == true) this->elapsedTime = ofGetElapsedTimef();
 
     // camera
-    if (isMultiView == true) {
-        grabberUpdateResizeMulti();
+    if (this->isMultiView == true) {
+        this->grabberUpdateResizeMulti();
     }
     else {
-        for (int i = 0; i < cameraNum; i++) {
-            grabberUpdateResize(i);
+        for (int i = 0; i < this->cameraNum; i++) {
+            this->grabberUpdateResize(i);
         }
+    }
+
+    for (int camIdx = 0; camIdx < cameraNum; camIdx++) { // cameraNum は有効なカメラ数と仮定
+        // 各カメラの処理開始時間を記録
+        auto startTime = std::chrono::high_resolution_clock::now();
+
+        // ... camView[camIdx] の既存の処理コード ...
+        // 例: マーカー検出、擬似RSSI計算など
+
+        // 各カメラの処理終了時間を記録し、loopTime を計算
+        // auto endTime = std::chrono::high_resolution_clock::now();
+        // camView[camIdx].loopTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        // loopTime を AR マーカー検出の FPS から逆算
+        float arFps = camView[camIdx].aruco.getFps();
+        if (arFps > 0) {
+            camView[camIdx].loopTime = 1000.0f / arFps;
+        } else {
+            camView[camIdx].loopTime = 0.0f; // FPSが0の場合は0を設定
+        }
+
+        // ... camView[camIdx] の残りの処理コード ...
     }
 
 
     // lap
-    frameTick = !frameTick;
-    if (gateDetectAllFrames == true) frameTick = true;
+    this->frameTick = !this->frameTick;
+    if (this->gateDetectAllFrames == true) this->frameTick = true;
 
-    if (frameTick == true) {
-        serialSendByte = 0;
-        for (int i = 0; i < cameraNum; i++) {
+    if (this->frameTick == true) {
+        // Process active cameras for AR detection and send ts_lap_data
+        for (int camIdx : this->activeCameraIndices) {
             // AR lap timer
-            if (camView[i].needCrop == true || camView[i].needResize == true) {
-                camView[i].aruco.detectMarkers(camView[i].resizedPixels);
+            ofPixels pixelsToDetect;
+            if (camView[camIdx].needCrop == true || camView[camIdx].needResize == true) {
+                pixelsToDetect = camView[camIdx].resizedPixels;
             }
             else {
-                camView[i].aruco.detectMarkers(grabber[i].getPixels());
+                pixelsToDetect = grabber[camIdx].getPixels();
+            }
+
+            // Ensure detection is done on a grayscale image for robustness
+            if (pixelsToDetect.isAllocated()) {
+                if (pixelsToDetect.getNumChannels() > 1) {
+                    ofImage tempImage;
+                    tempImage.setFromPixels(pixelsToDetect);
+                    tempImage.setImageType(OF_IMAGE_GRAYSCALE);
+                    camView[camIdx].aruco.detectMarkers(tempImage.getPixels());
+                } else {
+                    camView[camIdx].aruco.detectMarkers(pixelsToDetect);
+                }
             }
 
             // all markers
-            int anum = camView[i].aruco.getNumMarkers();
-            if (anum < ARAP_MNUM_THR && camView[i].foundMarkerNum >= ARAP_MNUM_THR) {
-                camView[i].flickerCount++;
-                if (camView[i].flickerCount <= 3) {
-                    anum = camView[i].foundMarkerNum; // anti flicker
+            int anum = camView[camIdx].aruco.getNumMarkers();
+            if (anum < this->arMarkerNumThreshold && camView[camIdx].foundMarkerNum >= this->arMarkerNumThreshold) {
+                camView[camIdx].flickerCount++;
+                if (camView[camIdx].flickerCount <= this->flickerThreshold) {
+                    anum = camView[camIdx].foundMarkerNum; // anti flicker
                 }
                 else {
-                    camView[i].flickerCount = 0;
+                    camView[camIdx].flickerCount = 0;
                 }
             }
             else {
-                camView[i].flickerCount = 0;
+                camView[camIdx].flickerCount = 0;
             }
             // vaild markers
-            int vnum = camView[i].aruco.getNumMarkersValidGate();
-            if (vnum < ARAP_MNUM_THR && camView[i].foundValidMarkerNum >= ARAP_MNUM_THR) {
-                camView[i].flickerValidCount++;
-                if (camView[i].flickerValidCount <= 3) {
-                    vnum = camView[i].foundValidMarkerNum; // anti flicker
+            int vnum = camView[camIdx].aruco.getNumMarkersValidGate();
+            if (vnum < this->arMarkerNumThreshold && camView[camIdx].foundValidMarkerNum >= this->arMarkerNumThreshold) {
+                camView[camIdx].flickerValidCount++;
+                if (camView[camIdx].flickerValidCount <= this->flickerThreshold) {
+                    vnum = camView[camIdx].foundValidMarkerNum; // anti flicker
                 }
                 else {
-                    camView[i].flickerValidCount = 0;
+                    camView[camIdx].flickerValidCount = 0;
                 }
             }
             else {
-                camView[i].flickerValidCount = 0;
+                camView[camIdx].flickerValidCount = 0;
             }
 
-            if ((anum == 0) && (camView[i].markerDetectStrengthLast > 0) && (camView[i].rssiOutput == false)) {
-                camView[i].markerEndTime = elapsedTime + 0.2f;
-                camView[i].markerOutput = camView[i].markerDetectStrengthLast;
-                camView[i].rssiOutput = true;
+            // ドローンがゲート内にいるかどうかの判断
+            bool currentlyInGate;
+            if (this->arLapMode == ARAP_MODE_NORM) currentlyInGate = ((vnum >= this->arMarkerNumThreshold) && (vnum== anum));
+            else if (this->arLapMode == ARAP_MODE_MIDDLE) currentlyInGate = (vnum >= this->arMarkerNumThreshold);
+            else currentlyInGate = (anum >= this->arMarkerNumThreshold);
+
+            if (currentlyInGate) {
+                camView[camIdx].isDroneInGate = true;
+            } else {
+                // 以前ゲート内にいて、今ゲート外に出た場合、ラップを検出
+                if (camView[camIdx].isDroneInGate) {
+                    // LAP DETECTED!
+                    ofxOscMessage m;
+                    m.setAddress("/ts_lap_data");
+                    m.addFloatArg(ofGetElapsedTimef() - this->raceStartTime); // lap_time (float)
+                    m.addIntArg(this->cameraFrequencyMap[camIdx]); // frequency (int)
+                    m.addIntArg(this->calculate_pseudo_rssi(camIdx)); // peak_rssi (int)
+                    this->oscSender.sendMessage(m, false); // 即座に送信
+                    if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /ts_lap_data for camera " << camIdx << " (Freq: " << this->cameraFrequencyMap[camIdx] << ")";
+
+                    camView[camIdx].rssiOutput = true; // このフレームでラップが検出されたことをハートビートに伝える
+                }
+                camView[camIdx].isDroneInGate = false; // ドローンはゲート外
             }
 
-            //RSSI pulse of gate passage is turned off after 0.2 seconds
-            if (camView[i].markerEndTime < elapsedTime) {
-                camView[i].markerOutput = 0b00;
-                camView[i].markerEndTime = 0;
-                camView[i].rssiOutput = false;
-            }
+            
 
-            serialSendByte |= camView[i].markerOutput << i * 2;
-
-            if ((vnum >= ARAP_MNUM_THR) && (vnum == anum)) camView[i].markerDetectStrengthLast = 0b11;
-            else if (vnum >= ARAP_MNUM_THR) camView[i].markerDetectStrengthLast = 0b10;
-            else if (anum >= ARAP_MNUM_THR) camView[i].markerDetectStrengthLast = 0b01;
-            else camView[i].markerDetectStrengthLast = 0b00;
-
-            camView[i].foundMarkerNum = anum;
-            camView[i].foundValidMarkerNum = vnum;
+            camView[camIdx].foundMarkerNum = anum;
+            camView[camIdx].foundValidMarkerNum = vnum;
         }
-        tvpSerial.writeByte(serialSendByte);
-        updateViewParams();
+        // tvpSerial.writeByte(serialSendByte); // REMOVED
+        this->updateViewParams();
+    }
+
+    // Process incoming OSC messages
+    while (oscReceiver.hasWaitingMessages()) {
+        ofxOscMessage m;
+        oscReceiver.getNextMessage(m);
+
+        // /get_server_time の処理
+        if (m.getAddress() == "/get_server_time") {
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_time request.";
+            float uptime = ofGetElapsedTimef();
+            ofxOscMessage reply;
+            reply.setAddress("/server_time_response");
+            reply.addFloatArg(uptime);
+            oscSender.sendMessage(reply, false);
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /server_time_response with time: " << uptime;
+        }
+        // /get_server_info の処理
+        else if (m.getAddress() == "/get_server_info") {
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_info request.";
+            ofxOscMessage response;
+            response.setAddress("/server_info");
+            response.addStringArg("1.0.0"); // release_version
+            response.addStringArg("TinyViewPlusAsSensors"); // name
+            oscSender.sendMessage(response, false);
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /server_info response.";
+        }
+        // /set_frequencies の処理
+        else if (m.getAddress() == "/set_frequencies") {
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /set_frequencies request.";
+            // ここで周波数設定のロジックを実装する（今回はダミー）
+            ofxOscMessage response;
+            response.setAddress("/frequencies_set_ack");
+            response.addIntArg(1); // 成功を示す (1: success, 0: failure)
+            oscSender.sendMessage(response, false);
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /frequencies_set_ack response.";
+        }
+        // その他のメッセージ
+        else if (m.getAddress() == "/stage_ready") {
+            onStageReady(m);
+        }
+        else {
+            if (this->logEnabled) ofLogNotice("ofApp::update") << "Received unknown OSC message: " << m.getAddress();
+        }
+    }
+
+    // Send heartbeat OSC message periodically
+    float currentTime = ofGetElapsedTimef();
+    if (currentTime - this->lastHeartbeatTime > 0.5f) { // Send every 0.5 seconds
+        ofxOscMessage m;
+        m.setAddress("/heartbeat");
+
+        // Prepare data for heartbeat
+        ofJson current_rssi_json = ofJson::array();
+        ofJson frequency_json = ofJson::array();
+        ofJson crossing_flag_json = ofJson::array();
+        ofJson loop_time_json = ofJson::array();
+
+        for (int camIdx = 0; camIdx < cameraNum; camIdx++) { // Iterate over all cameras
+            current_rssi_json.push_back(this->calculate_pseudo_rssi(camIdx));
+            // Ensure cameraFrequencyMap has the key, otherwise use a default value
+            frequency_json.push_back(this->cameraFrequencyMap.count(camIdx) ? this->cameraFrequencyMap[camIdx] : 0);
+            crossing_flag_json.push_back(camView[camIdx].rssiOutput);
+            loop_time_json.push_back(camView[camIdx].loopTime);
+        }
+
+        // Add data as stringified JSON to OSC message
+        // すべてのデータを1つのJSONオブジェクトにまとめる
+        ofJson heartbeat_data;
+        heartbeat_data["current_rssi"] = current_rssi_json;
+        heartbeat_data["frequency"] = frequency_json;
+        heartbeat_data["crossing_flag"] = crossing_flag_json;
+        heartbeat_data["loop_time"] = loop_time_json;
+
+        // JSON文字列をofBufferに変換してバイナリデータとして送信
+        std::string json_str = heartbeat_data.dump();
+        m.addStringArg(json_str); // JSON文字列をstring型として送信
+
+        this->oscSender.sendMessage(m, false);
+        if (this->logEnabled) ofLogVerbose("ofApp::update") << "Sent /heartbeat";
+        this->lastHeartbeatTime = currentTime;
     }
 }
 
 //--------------------------------------------------------------
-void drawInit() {
-    int x = (ofGetWidth() - logoLargeImage.getWidth()) / 2;
-    int y = (ofGetHeight() - logoLargeImage.getHeight()) / 2;
+void ofApp::drawInit() {
+    int x = (ofGetWidth() - this->logoLargeImage.getWidth()) / 2;
+    int y = (ofGetHeight() - this->logoLargeImage.getHeight()) / 2;
     int elpm = ofGetElapsedTimeMillis();
     if (elpm >= 2700) {
         ofSetColor((3000 - elpm) * 255 / 300);
     } else {
         ofSetColor(255);
     }
-    logoLargeImage.draw(x, y);
+    this->logoLargeImage.draw(x, y);
 }
 
 //--------------------------------------------------------------
-void drawCamCheck() {
+void ofApp::drawCamCheck() {
     ofxTrueTypeFontUC *font;
     int w, h, x, xoff, y, margin;
     string str;
@@ -561,23 +731,23 @@ void drawCamCheck() {
     y = (ofGetHeight() / 2) - (h / 2);
     ofSetColor(255);
     // header
-    font = &myFontOvlayP2x;
+    font = &this->myFontOvlayP2x;
     margin = font->getLineHeight();
     str = "Camera Setup";
-    ofSetColor(myColorYellow);
+    ofSetColor(this->myColorYellow);
     font->drawString(str, (ofGetWidth() - font->stringWidth(str)) / 2, y - margin);
     // camera
-    ofSetColor(myColorDGray);
+    ofSetColor(this->myColorDGray);
     ofFill();
     ofDrawRectangle(-2, y - 2, ofGetWidth() + 4, h + 4);
-    if (cameraNum == 0) {
+    if (this->cameraNum == 0) {
         isalt = true;
         str = "No device";
     } else {
-        ofSetColor(myColorWhite);
-        xoff = (ofGetWidth() - ((w + 4) * cameraNum)) / 2;
+        ofSetColor(this->myColorWhite);
+        xoff = (ofGetWidth() - ((w + 4) * this->cameraNum)) / 2;
         ofNoFill();
-        for (int i = 0; i < cameraNum; i++) {
+        for (int i = 0; i < this->cameraNum; i++) {
             x = ((w + 4) * i) + xoff;
             if (grabber[i].isInitialized() == true) {
                 grabber[i].draw(x, y, w, h);
@@ -593,21 +763,11 @@ void drawCamCheck() {
     ofFill();
     // alert
     if (isalt == true) {
-        drawOverlayMessageCore(&myFontLap, str);
+        this->drawOverlayMessageCore(&this->myFontLap, str);
     }
     // footer
-    font = &myFontOvlayP;
-    ofSetColor(myColorYellow);
-
-    if (!serialStatusMessage.empty()) {
-        ofColor msgColor = (serialStatusMessage.find("Error") != string::npos) ? myColorAlert : myColorWhite;
-        ofSetColor(msgColor);
-        str = serialStatusMessage;
-        x = (ofGetWidth() - font->stringWidth(str)) / 2;
-        y = y + h + margin;
-        font->drawString(str, x, y);
-        y += margin;
-    }
+    font = &this->myFontOvlayP;
+    ofSetColor(this->myColorYellow);
 
     str = "If all devices are found, press Space key to continue.";
     x = (ofGetWidth() - font->stringWidth(str)) / 2;
@@ -619,11 +779,11 @@ void drawCamCheck() {
     y = y + margin;
     font->drawString(str, x, y);
 
-    drawInfo();
+    this->drawInfo();
 }
 
 //--------------------------------------------------------------
-void drawCameraImage(int camidx) {
+void ofApp::drawCameraImage(int camidx) {
     int i = camidx;
     int x, y, w, h;
     x = camView[i].posX;
@@ -648,20 +808,24 @@ void drawCameraImage(int camidx) {
         ofFill();
         ofDrawRectangle(x, camView[i].posY, w, camView[i].height);
     }
-    ofSetColor(myColorWhite);
+    ofSetColor(this->myColorWhite);
     if ((camView[i].needCrop == true || camView[i].needResize == true)
         && camView[i].resizedImage.isAllocated() == true) {
-        // wide
+        // if (this->logEnabled) ofLogNotice("ofApp::drawCameraImage") << "Drawing cam " << i << " resizedImage at " << x << "," << y << " with size " << w << "," << h;
         camView[i].resizedImage.draw(x, y, w, h);
     }
     else {
-        // normal
+        if (camView[i].needCrop == true || camView[i].needResize == true) {
+            // if (this->logEnabled) ofLogWarning("ofApp::drawCameraImage") << "camView[" << i << "] resizedImage not allocated. Crop/Resize is true.";
+        } else {
+            if (this->logEnabled) ofLogNotice("ofApp::drawCameraImage") << "Drawing cam " << i << " grabber at " << x << "," << y << " with size " << w << "," << h;
+        }
         grabber[i].draw(x, y, w, h);
     }
 }
 
 //--------------------------------------------------------------
-void drawCameraARMarker(int idx, bool isSub) {
+void ofApp::drawCameraARMarker(int idx, bool isSub) {
     int i = idx;
     // rect
     int tx, ty;
@@ -677,7 +841,7 @@ void drawCameraARMarker(int idx, bool isSub) {
     ofTranslate(tx, ty);
     ofScale(sc, sc, 1);
     ofSetLineWidth(ARAP_RECT_LINEW);
-    camView[i].aruco.draw2dGate(myColorYellow, myColorAlert, false);
+    camView[i].aruco.draw2dGate(this->myColorYellow, this->myColorAlert, false);
     ofPopMatrix();
     // meter
     string lv_valid = "";
@@ -685,7 +849,7 @@ void drawCameraARMarker(int idx, bool isSub) {
     int x, y;
     int vnum = camView[i].foundValidMarkerNum;
     int ivnum = camView[i].foundMarkerNum - camView[i].foundValidMarkerNum;
-    int offset = (cameraFrameEnabled == true) ? FRAME_LINEWIDTH : 0;
+    int offset = (this->cameraFrameEnabled == true) ? FRAME_LINEWIDTH : 0;
     for (int j = 0; j < vnum; j++) {
         lv_valid += "|";
     }
@@ -696,27 +860,27 @@ void drawCameraARMarker(int idx, bool isSub) {
     y = isSub ? (camView[i].lapPosY + (LAP_HEIGHT / 2) + 5) : (camView[i].lapPosY + LAP_HEIGHT + 10);
     y = y + offset + 10;
     if (vnum > 0) {
-        ofSetColor(myColorYellow);
+        ofSetColor(this->myColorYellow);
         if (isSub) {
-            myFontLapSub.drawString(lv_valid, x, y);
+            this->myFontLapSub.drawString(lv_valid, x, y);
         } else {
-            myFontLap.drawString(lv_valid, x, y);
+            this->myFontLap.drawString(lv_valid, x, y);
         }
     }
     if (ivnum > 0) {
-        ofSetColor(myColorAlert);
+        ofSetColor(this->myColorAlert);
         if (isSub) {
             if (vnum > 0) {
                 x += 2;
             }
-            x = x + myFontLapSub.stringWidth(lv_valid);
-            myFontLapSub.drawString(lv_invalid, x, y);
+            x = x + this->myFontLapSub.stringWidth(lv_valid);
+            this->myFontLapSub.drawString(lv_invalid, x, y);
         } else {
             if (vnum > 0) {
                 x += 5;
             }
-            x = x + myFontLap.stringWidth(lv_valid);
-            myFontLap.drawString(lv_invalid, x, y);
+            x = x + this->myFontLap.stringWidth(lv_valid);
+            this->myFontLap.drawString(lv_invalid, x, y);
         }
     }
 }
@@ -727,38 +891,38 @@ void drawCameraARMarker(int idx, bool isSub) {
 
 
 
-void drawCamera(int idx) {
+void ofApp::drawCamera(int idx) {
 
     // image
-    drawCameraImage(idx);
+    this->drawCameraImage(idx);
     // AR marker
-    drawCameraARMarker(idx, false);
+    this->drawCameraARMarker(idx, false);
 }
 
 
 
 //--------------------------------------------------------------
-void drawInfo() {
+void ofApp::drawInfo() {
     string str;
     int x, y;
     y = ofGetHeight() - (1 + 4);
     // logo
-    if (tvpScene == SCENE_CAMS || overlayMode == OVLMODE_HELP || overlayMode == OVLMODE_RCRSLT) {
-        ofSetColor(myColorWhite);
-        logoSmallImage.draw(0, 0);
+    if (tvpScene == SCENE_CAMS || this->overlayMode == OVLMODE_HELP || this->overlayMode == OVLMODE_RCRSLT) {
+        ofSetColor(this->myColorWhite);
+        this->logoSmallImage.draw(0, 0);
         // appinfo
         str = ofToString(APP_VER);
-        drawStringWithShadow(&myFontInfo1p, myColorWhite, myColorBGMiddle, str, 4, y);
+        this->drawStringWithShadow(&this->myFontInfo1p, this->myColorWhite, this->myColorBGMiddle, str, 4, y);
         // date/time
         str = ofGetTimestampString("%F %T");
-        x = ofGetWidth() - myFontInfo1m.stringWidth(str);
+        x = ofGetWidth() - this->myFontInfo1m.stringWidth(str);
         x = (int)(x / 5) * 5;
-        drawStringWithShadow(&myFontInfo1m, myColorWhite, myColorBGMiddle, str, x, y);
+        this->drawStringWithShadow(&this->myFontInfo1m, this->myColorWhite, this->myColorBGMiddle, str, x, y);
     }
 }
 
 //--------------------------------------------------------------
-void drawStringWithShadow(ofxTrueTypeFontUC *font, ofColor color, ofColor bgcolor, string str, int x, int y) {
+void ofApp::drawStringWithShadow(ofxTrueTypeFontUC *font, ofColor color, ofColor bgcolor, string str, int x, int y) {
     // shadow
     ofRectangle rect;
     int margin = 4;
@@ -777,41 +941,55 @@ void drawStringWithShadow(ofxTrueTypeFontUC *font, ofColor color, ofColor bgcolo
 //--------------------------------------------------------------
 void ofApp::draw() {
     if (tvpScene == SCENE_INIT) {
-        drawInit();
+        this->drawInit();
         return;
     } else if (tvpScene == SCENE_CAMS) {
-        drawCamCheck();
+        this->drawCamCheck();
         return;
     }
 
     // camera (solo sub / solo off)
-    for (int i = 0; i < cameraNum; i++) {
-        drawCamera(i);
+    for (int camIdx : this->activeCameraIndices) {
+        this->drawCamera(camIdx);
     }
     // overlay
-    switch (overlayMode) {
+    switch (this->overlayMode) {
         case OVLMODE_HELP:
-            drawHelp();
+            this->drawHelp();
             break;
         case OVLMODE_MSG:
-            drawOverlayMessage();
+            this->drawOverlayMessage();
             break;
         default:
             break;
     }
     // more info
-    drawInfo();
+    this->drawInfo();
     // SYSTEM STATUS
-    if (sysStatEnabled == true) {
+    if (this->sysStatEnabled) {
         int x = 10;
         int y = 50;
         int h = 15;
         //screen fps
-        ofSetColor(myColorYellow);
+        ofSetColor(this->myColorYellow);
         ofDrawBitmapString("Screen FPS: " + ofToString(ofGetFrameRate()), x, y += h);
+        //AR laptimer mode
+        string arModeStr;
+        if (this->arLapMode == ARAP_MODE_NORM) {
+            arModeStr = "Normal";
+        } else if (this->arLapMode == ARAP_MODE_MIDDLE) {
+            arModeStr = "Middle";
+        } else if (this->arLapMode == ARAP_MODE_LOOSE) {
+            arModeStr = "Loose";
+        } else if (this->arLapMode == ARAP_MODE_ULOOSE) {
+            arModeStr = "UltraLoose";
+        } else {
+            arModeStr = "Off";
+        }
+        ofDrawBitmapString("AR Mode: " + arModeStr, x, y += h);
         //AR laptimer
         ofDrawBitmapString("AR Markers/Rects/FPS:", x, y += h);
-        for (int i = 0; i < cameraNum; i++) {
+        for (int i = 0; i < this->cameraNum; i++) {
             int m, r;
             m = camView[i].aruco.getNumMarkers();
             r = camView[i].aruco.getNumRectangles();
@@ -824,112 +1002,177 @@ void ofApp::draw() {
 }
 
 //--------------------------------------------------------------
-void keyPressedOverlayHelp(int key) {
+void ofApp::keyPressedOverlayHelp(int key) {
     if (key == 'h' || key == 'H' || ofGetKeyPressed(OF_KEY_ESC)) {
-        setOverlayMode(OVLMODE_NONE);
-    } else if (key == 'N' || key == 'n'
-               || key == 'F' || key == 'f'
-               || key == 'T' || key == 't'
-               || key == 'E' || key == 'e'
-               || key == '1' || key == '2' || key == '3' || key == '4'
-               || ofGetKeyPressed(TVP_KEY_ALT)
-               || key == 'A' || key == 'a'
-               || key == 'D' || key == 'd'
-               || key == 'W' || key == 'w'
-               || ofGetKeyPressed(OF_KEY_PAGE_UP)
-               || ofGetKeyPressed(OF_KEY_PAGE_DOWN)
-               || ofGetKeyPressed(OF_KEY_UP)
-               || ofGetKeyPressed(OF_KEY_DOWN)
-               || ofGetKeyPressed(OF_KEY_LEFT)
-               || ofGetKeyPressed(OF_KEY_RIGHT)
-               || key == 'G' || key == 'g'
-               || key == 'L' || key == 'l'
-               || key == 'C' || key == 'c'
-               || key == 'S' || key == 's') {
-        // stay at help screen
-        keyPressedOverlayNone(key);
+        this->setOverlayMode(OVLMODE_NONE);
+    } else if (ofGetKeyPressed(OF_KEY_LEFT)) {
+        this->changeFlickerThreshold(TVP_VAL_MINUS);
+    } else if (ofGetKeyPressed(OF_KEY_RIGHT)) {
+        this->changeFlickerThreshold(TVP_VAL_PLUS);
+    } else if (ofGetKeyPressed(OF_KEY_UP)) {
+        this->changeArucoMinSize(TVP_VAL_PLUS);
+    } else if (ofGetKeyPressed(OF_KEY_DOWN)) {
+        this->changeArucoMinSize(TVP_VAL_MINUS);
+    } else if (key == 's' || key == 'S') {
+        this->toggleSysStat();
+    } else if (key == 'l' || key == 'L') {
+        this->toggleLog();
+    } else if (key == 'a' || key == 'A') {
+        this->toggleARLap();
+    } else if (key == 'd' || key == 'D') {
+        this->toggleGateDetectFrequency();
     } else {
-        setOverlayMode(OVLMODE_NONE);
-        keyPressedOverlayNone(key);
+        this->setOverlayMode(OVLMODE_NONE);
+        this->keyPressedOverlayNone(key);
     }
 }
 
 //--------------------------------------------------------------
-void keyPressedOverlayMessage(int key) {
-    setOverlayMode(OVLMODE_NONE);
-    keyPressedOverlayNone(key);
+void ofApp::keyPressedOverlayMessage(int key) {
+    this->setOverlayMode(OVLMODE_NONE);
+    this->keyPressedOverlayNone(key);
 }
 
 //--------------------------------------------------------------
-void keyPressedOverlayNone(int key) {
+void ofApp::keyPressedOverlayNone(int key) {
     if (ofGetKeyPressed(OF_KEY_ESC)) {
-        if (fullscreenEnabled == true) {
-            toggleFullscreen();
+        if (this->fullscreenEnabled == true) {
+            this->toggleFullscreen();
         }
     } else {
         if (key == 'h' || key == 'H') {
-            setOverlayMode(OVLMODE_HELP);
+            this->setOverlayMode(OVLMODE_HELP);
         } else if (key == 'f' || key == 'F') {
-            toggleFullscreen();
+            this->toggleFullscreen();
         } else if (key == 's' || key == 'S') {
-            toggleSysStat();
+            this->toggleSysStat();
+        } else if (key == 'l' || key == 'L') {
+            this->toggleLog();
+        } else if (key == 'a' || key == 'A') {
+            this->toggleARLap();
+        } else if (key == 'd' || key == 'D') {
+            this->toggleGateDetectFrequency();
         }
     }
 }
 
-//--------------------------------------------------------------
-void keyPressedCamCheck(int key) {
-    if (ofGetKeyPressed(OF_KEY_ESC)) {
-         ofExit();
-    } else if (key == ' ') {
-        if (DEBUG_ENABLED == true) {
-            cameraNum = CAMERA_MAXNUM;
-        }
-        if (cameraNum > 0) {
-            setupMain();
-        }
+void ofApp::updateArLapModeSettings() {
+    switch (this->arLapMode) {
+        case ARAP_MODE_ULOOSE:
+            this->arMarkerNumThreshold = 1;
+            break;
+        default:
+            this->arMarkerNumThreshold = 2;
+            break;
     }
 }
+
+//--------------------------------------------------------------
+void ofApp::toggleARLap() {
+    if (this->arLapMode == ARAP_MODE_NORM) {
+        this->arLapMode = ARAP_MODE_MIDDLE;
+    } else if (this->arLapMode == ARAP_MODE_MIDDLE) {
+        this->arLapMode = ARAP_MODE_LOOSE;
+    } else if (this->arLapMode == ARAP_MODE_LOOSE) {
+        this->arLapMode = ARAP_MODE_ULOOSE;
+    } else {
+        this->arLapMode = ARAP_MODE_NORM;
+    }
+    this->updateArLapModeSettings();
+    this->saveSettingsFile();
+}
+
+//--------------------------------------------------------------
+void ofApp::changeFlickerThreshold(int val) {
+    this->flickerThreshold += val;
+    if (this->flickerThreshold < 0) {
+        this->flickerThreshold = 0;
+    } else if (this->flickerThreshold > 20) {
+        this->flickerThreshold = 20;
+    }
+    this->saveSettingsFile();
+}
+
+//--------------------------------------------------------------
+void ofApp::changeArucoMinSize(int val) {
+    this->arucoMinSize += val;
+    if (this->arucoMinSize < 1) {
+        this->arucoMinSize = 1;
+    } else if (this->arucoMinSize > 20) {
+        this->arucoMinSize = 20;
+    }
+    // Update the Aruco detector with the new size immediately
+    this->setMinDetectSize();
+    this->saveSettingsFile();
+}
+
+//--------------------------------------------------------------
+void ofApp::toggleLog() {
+    this->logEnabled = !this->logEnabled;
+    this->saveSettingsFile();
+}
+
+//--------------------------------------------------------------
+void ofApp::toggleGateDetectFrequency() {
+    this->gateDetectAllFrames = !this->gateDetectAllFrames;
+    this->saveSettingsFile();
+}
+
+//--------------------------------------------------------------
+void ofApp::keyPressedCamCheck(int key) {
+    if (key == ' ') {
+        setupMain();
+    } else if (ofGetKeyPressed(OF_KEY_ESC)) {
+        ofExit();
+    }
+}
+
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key) {
     if (tvpScene == SCENE_INIT) {
-        setupCamCheck();
+        this->setupCamCheck();
         return;
     } else if (tvpScene == SCENE_CAMS) {
-        keyPressedCamCheck(key);
+        this->keyPressedCamCheck(key);
         return;
     }
-    raceResultTimer = -1;
-    switch (overlayMode) {
+    this->raceResultTimer = -1;
+    switch (this->overlayMode) {
         case OVLMODE_HELP:
-            keyPressedOverlayHelp(key);
+            this->keyPressedOverlayHelp(key);
             break;
         case OVLMODE_MSG:
-            keyPressedOverlayMessage(key);
+            this->keyPressedOverlayMessage(key);
             break;
         case OVLMODE_NONE:
-            keyPressedOverlayNone(key);
+            this->keyPressedOverlayNone(key);
             break;
         default:
             break;
     }
 }
 
+//--------------------------------------------------------------
+void ofApp::setMinDetectSize() {
+    for (int i = 0; i < this->cameraNum; i++) {
+        camView[i].aruco.setMinMaxMarkerDetectionSize(this->arucoMinSize*0.01f, 0.25);
+    }
+}
 
 //--------------------------------------------------------------
 void ofApp::mouseMoved(int x, int y) {
-    activateCursor();
+    this->activateCursor();
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseDragged(int x, int y, int button){
-    activateCursor();
+    this->activateCursor();
 }
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
-    activateCursor();
+    this->activateCursor();
 }
 
 
@@ -942,12 +1185,12 @@ void ofApp::mouseExited(int x, int y){
 //--------------------------------------------------------------
 void ofApp::windowResized(int w, int h){
     // overlay
-    loadOverlayFont();
+    this->loadOverlayFont();
     if (tvpScene != SCENE_MAIN) {
         return;
     }
     // view
-    setViewParams();
+    this->setViewParams();
 }
 
 //--------------------------------------------------------------
@@ -965,14 +1208,13 @@ void ofApp::exit() {
     if (tvpScene != SCENE_MAIN) {
         return;
     }
-    for (int i = 0; i < cameraNum; i++) {
+    for (int i = 0; i < this->cameraNum; i++) {
         camView[i].aruco.setThreaded(false);
     }
-    tvpSerial.close();
 }
 
 //--------------------------------------------------------------
-void grabberUpdateResize(int cidx) {
+void ofApp::grabberUpdateResize(int cidx) {
     tvpCamView* cv = &camView[cidx];
         grabber[cidx].update();
         if (grabber[cidx].isFrameNew() == false
@@ -984,54 +1226,81 @@ void grabberUpdateResize(int cidx) {
             cv->resizedPixels.crop(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
         }
         if (cv->needResize == true) {
+            float aspectRatio = (float)cv->cropW / cv->cropH;
+            int targetWidth = CAMERA_WIDTH;
+            int targetHeight = CAMERA_HEIGHT;
+
             if (cv->isWide == true) {
-                cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT * 0.75);
+                targetHeight = CAMERA_HEIGHT * 0.75; // 16:9 target height
             }
-            else {
-                cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT);
+
+            int newWidth, newHeight;
+            float targetAspectRatio = (float)targetWidth / targetHeight;
+
+            if (aspectRatio > targetAspectRatio) { // Image is wider than target
+                newWidth = targetWidth;
+                newHeight = round(targetWidth / aspectRatio);
+            } else { // Image is taller than target or same aspect ratio
+                newHeight = targetHeight;
+                newWidth = round(targetHeight * aspectRatio);
             }
+            cv->resizedPixels.resize(newWidth, newHeight);
         }
         cv->resizedImage.setFromPixels(cv->resizedPixels);
 }
-void grabberUpdateResizeMulti() {
-    tvpCamView* cv;
-
+void ofApp::grabberUpdateResizeMulti() {
     grabber[0].update();
     if (grabber[0].isFrameNew() == false) return;
-    for (int i = 0; i < cameraNum; i++) {
+
+    tvpCamView* cv;
+    for (int i = 0; i < this->cameraNum; i++) {
         cv = &camView[i];
         cv->resizedPixels = grabber[0].getPixels();
         cv->resizedPixels.crop(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
+
+        float aspectRatio = (float)cv->cropW / cv->cropH;
+        int targetWidth = CAMERA_WIDTH;
+        int targetHeight = CAMERA_HEIGHT;
+
         if (cv->isWide == true) {
-            cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT * 0.75);
+            targetHeight = CAMERA_HEIGHT * 0.75; // 16:9 target height
         }
-        else {
-            cv->resizedPixels.resize(CAMERA_WIDTH, CAMERA_HEIGHT);
+
+        int newWidth, newHeight;
+        float targetAspectRatio = (float)targetWidth / targetHeight;
+
+        if (aspectRatio > targetAspectRatio) { // Image is wider than target
+            newWidth = targetWidth;
+            newHeight = round(targetWidth / aspectRatio);
+        } else { // Image is taller than target or same aspect ratio
+            newHeight = targetHeight;
+            newWidth = round(targetHeight * aspectRatio);
         }
+        cv->resizedPixels.resize(newWidth, newHeight);
         cv->resizedImage.setFromPixels(cv->resizedPixels);
     }
 }
 
 //--------------------------------------------------------------
-void setupColors() {
+void ofApp::setupColors() {
     // common
-    myColorYellow = ofColor(COLOR_YELLOW);
-    myColorWhite = ofColor(COLOR_WHITE);
-    myColorLGray = ofColor(COLOR_LGRAY);
-    myColorDGray = ofColor(COLOR_DGRAY);
-    myColorBGDark = ofColor(COLOR_BG_DARK);
-    myColorBGMiddle = ofColor(COLOR_BG_MIDDLE);
-    myColorBGLight = ofColor(COLOR_BG_LIGHT);
-    myColorAlert = ofColor(COLOR_ALERT);
+    this->myColorYellow = ofColor(COLOR_YELLOW);
+    this->myColorWhite = ofColor(COLOR_WHITE);
+    this->myColorLGray = ofColor(COLOR_LGRAY);
+    this->myColorDGray = ofColor(COLOR_DGRAY);
+    this->myColorBGDark = ofColor(COLOR_BG_DARK);
+    this->myColorBGMiddle = ofColor(COLOR_BG_MIDDLE);
+    this->myColorBGLight = ofColor(COLOR_BG_LIGHT);
+    this->myColorAlert = ofColor(COLOR_ALERT);
 }
 
 //--------------------------------------------------------------
-void setViewParams() {
+void ofApp::setViewParams() {
     int i;
     int width = ofGetWidth();
     int height = ofGetHeight();
     //float ratio = (float)width / (float)height;
-    switch (cameraNumVisible) {
+    switch (this->cameraNumVisible) {
         case 1:
             // 1st visible camera
             camView[0].moveSteps = MOVE_STEPS;
@@ -1104,7 +1373,7 @@ void setViewParams() {
             // none
             break;
     }
-    for (i = 0; i < cameraNumVisible; i++) {
+    for (i = 0; i < this->cameraNumVisible; i++) {
         //idx = getCameraIdxNthVisibleAll(i);
         //if (idx == -1) {
         //    break;
@@ -1121,7 +1390,7 @@ void setViewParams() {
 }
 
 //--------------------------------------------------------------
-int calcViewParam(int target, int current, int steps) {
+int ofApp::calcViewParam(int target, int current, int steps) {
     int val, diff;
     if (steps == 0 || target == current) {
         return target;
@@ -1137,115 +1406,134 @@ int calcViewParam(int target, int current, int steps) {
 }
 
 //--------------------------------------------------------------
-void updateViewParams() {
+void ofApp::updateViewParams() {
     int i, steps;
-    for (i = 0; i < cameraNumVisible; i++) {
+    for (i = 0; i < this->cameraNumVisible; i++) {
         // normal view
         steps = camView[i].moveSteps;
         if (steps == 0) {
             continue;
         }
         // camera
-        camView[i].width = calcViewParam(camView[i].widthTarget, camView[i].width, steps);
-        camView[i].height = calcViewParam(camView[i].heightTarget, camView[i].height, steps);
-        camView[i].posX = calcViewParam(camView[i].posXTarget, camView[i].posX, steps);
-        camView[i].posY = calcViewParam(camView[i].posYTarget, camView[i].posY, steps);
+        camView[i].width = this->calcViewParam(camView[i].widthTarget, camView[i].width, steps);
+        camView[i].height = this->calcViewParam(camView[i].heightTarget, camView[i].height, steps);
+        camView[i].posX = this->calcViewParam(camView[i].posXTarget, camView[i].posX, steps);
+        camView[i].posY = this->calcViewParam(camView[i].posYTarget, camView[i].posY, steps);
+        if (this->logEnabled) ofLogNotice("ofApp::updateViewParams") << "Cam " << i << ": Pos(" << camView[i].posX << "," << camView[i].posY << ") Size(" << camView[i].width << "," << camView[i].height << ")";
         camView[i].imageScale = (float)(camView[i].width) / (float)CAMERA_WIDTH;
         if (camView[i].isWide == true) {
             camView[i].posYWide = camView[i].posY + (camView[i].height / 8);
             camView[i].heightWide = camView[i].height * 0.75;
         }
         // lap
-        camView[i].lapPosX = calcViewParam(camView[i].lapPosXTarget, camView[i].lapPosX, steps);
-        camView[i].lapPosY = calcViewParam(camView[i].lapPosYTarget, camView[i].lapPosY, steps);
+        camView[i].lapPosX = this->calcViewParam(camView[i].lapPosXTarget, camView[i].lapPosX, steps);
+        camView[i].lapPosY = this->calcViewParam(camView[i].lapPosYTarget, camView[i].lapPosY, steps);
         camView[i].moveSteps--;
     }
 }
 
 //--------------------------------------------------------------
-void initConfig() {
+void ofApp::initConfig() {
     // system
-    sysStatEnabled = DFLT_SYS_STAT;
-    cameraNumVisible = cameraNum;
+    this->sysStatEnabled = DFLT_SYS_STAT;
+    this->cameraNumVisible = this->cameraNum;
     // view mode
-    cameraTrimEnabled = DFLT_CAM_TRIM;
-    fullscreenEnabled = DFLT_FSCR_ENBLD;
-    cameraFrameEnabled = DFLT_CAM_FRAMED;
-    setViewParams();
+    this->cameraTrimEnabled = DFLT_CAM_TRIM;
+    this->fullscreenEnabled = DFLT_FSCR_ENBLD;
+    this->cameraFrameEnabled = DFLT_CAM_FRAMED;
+    this->setViewParams();
     // AR lap timer
-    setOverlayMode(OVLMODE_NONE);
-    raceStarted = false;
-    initRaceVars();
+    this->setOverlayMode(OVLMODE_NONE);
+    this->raceStarted = false;
+    this->initRaceVars();
     // finish
-    xmlPilots.clear();
-    saveSettingsFile();
-    setOverlayMessage("Initialized settings");
+    this->xmlPilots.clear();
+    this->saveSettingsFile();
+    this->setOverlayMessage("Initialized settings");
 }
 //--------------------------------------------------------------
-void toggleSysStat() {
-    sysStatEnabled = !sysStatEnabled;
-    saveSettingsFile();
+void ofApp::toggleSysStat() {
+    this->sysStatEnabled = !this->sysStatEnabled;
+    this->saveSettingsFile();
 }
 //--------------------------------------------------------------
-void initRaceVars() {
-    for (int i = 0; i < cameraNum; i++) {
+void ofApp::initRaceVars() {
+    for (int i = 0; i < this->cameraNum; i++) {
         camView[i].foundMarkerNum = 0;
         camView[i].foundValidMarkerNum = 0;
         camView[i].enoughMarkers = false;
         camView[i].flickerCount = 0;
         camView[i].flickerValidCount = 0;
+        camView[i].rssiOutput = false;
+        camView[i].isDroneInGate = false;
     }
-    elapsedTime = 0;
+    this->elapsedTime = 0;
 }
+void ofApp::onStageReady(ofxOscMessage& m) {
+    if (this->logEnabled) ofLogNotice("ofApp::onStageReady") << "Received /stage_ready message.";
+
+    if (m.getNumArgs() > 0 && (m.getArgType(0) == OFXOSC_TYPE_FLOAT || m.getArgType(0) == OFXOSC_TYPE_DOUBLE)) {
+        float pi_starts_at_s = m.getArgAsFloat(0);
+
+        this->raceStartTime = pi_starts_at_s;
+
+        if (this->logEnabled) ofLogNotice("ofApp::onStageReady") << "Updated raceStartTime to: " << this->raceStartTime;
+
+        this->raceStarted = true;
+
+    } else {
+        if (this->logEnabled) ofLogWarning("ofApp::onStageReady") << "Received /stage_ready message with invalid arguments.";
+    }
+}
+
 //--------------------------------------------------------------
-void startRace() {
-    if (raceStarted == true) {
+void ofApp::startRace() {
+    if (this->raceStarted == true) {
+        if (this->logEnabled) ofLogNotice("ofApp::startRace") << "Race already started by external command. Skipping internal start.";
         return;
     }
-    initRaceVars();
-    raceStarted = true;
+    this->initRaceVars();
+    this->raceStarted = true;
     ofResetElapsedTimeCounter();
+    // Store race start time for lap_time calculation
+    this->raceStartTime = ofGetElapsedTimef();
 }
 
 
 //--------------------------------------------------------------
-
-//--------------------------------------------------------------
-// 
-//--------------------------------------------------------------
-void toggleFullscreen() {
-    fullscreenEnabled = !fullscreenEnabled;
-    ofSetFullscreen(fullscreenEnabled);
-    saveSettingsFile();
+void ofApp::toggleFullscreen() {
+    this->fullscreenEnabled = !this->fullscreenEnabled;
+    ofSetFullscreen(this->fullscreenEnabled);
+    this->saveSettingsFile();
 }
 
 //--------------------------------------------------------------
-void setOverlayMode(int mode) {
-    overlayMode = mode;
+void ofApp::setOverlayMode(int mode) {
+    this->overlayMode = mode;
     if (mode != OVLMODE_MSG) {
-        initOverlayMessage();
+        this->initOverlayMessage();
     }
 }
 
 //--------------------------------------------------------------
-void loadOverlayFont() {
+void ofApp::loadOverlayFont() {
     int h = (ofGetHeight() - (OVLTXT_MARG * 2)) / OVLTXT_LINES * 0.7;
-    if (myFontOvlayP.isLoaded()) {
-        myFontOvlayP.unloadFont();
+    if (this->myFontOvlayP.isLoaded()) {
+        this->myFontOvlayP.unloadFont();
     }
-    if (myFontOvlayP2x.isLoaded()) {
-        myFontOvlayP2x.unloadFont();
+    if (this->myFontOvlayP2x.isLoaded()) {
+        this->myFontOvlayP2x.unloadFont();
     }
-    if (myFontOvlayM.isLoaded()) {
-        myFontOvlayM.unloadFont();
+    if (this->myFontOvlayM.isLoaded()) {
+        this->myFontOvlayM.unloadFont();
     }
-    myFontOvlayP.load(FONT_P_FILE, h);
-    myFontOvlayP2x.load(FONT_P_FILE, h * 2);
-    myFontOvlayM.load(FONT_M_FILE, h);
+    this->myFontOvlayP.load(FONT_P_FILE, h);
+    this->myFontOvlayP2x.load(FONT_P_FILE, h * 2);
+    this->myFontOvlayM.load(FONT_M_FILE, h);
 }
 
 //--------------------------------------------------------------
-void drawStringBlock(ofxTrueTypeFontUC *font, string text,
+void ofApp::drawStringBlock(ofxTrueTypeFontUC *font, string text,
                      int xblock, int yline, int align, int blocks, int lines) {
     int bw, bh, x, y, xo, yo;
     int margin = OVLTXT_MARG;
@@ -1271,11 +1559,12 @@ void drawStringBlock(ofxTrueTypeFontUC *font, string text,
     // pos-y
     y = margin + ((yline + 1) * bh) + yo;
     // draw
+    ofSetColor(this->myColorWhite);
     font->drawString(text, x, y);
 }
 
 //--------------------------------------------------------------
-void drawLineBlock(int xblock1, int xblock2, int yline, int blocks, int lines) {
+void ofApp::drawLineBlock(int xblock1, int xblock2, int yline, int blocks, int lines) {
     int bw, bh, x, y, w, h, xo, yo;
     int margin = OVLTXT_MARG;
 
@@ -1290,11 +1579,12 @@ void drawLineBlock(int xblock1, int xblock2, int yline, int blocks, int lines) {
     h = 2;
 
     ofFill();
+    ofSetColor(this->myColorYellow);
     ofDrawRectangle(x, y, w, h);
 }
 
 //--------------------------------------------------------------
-void drawULineBlock(int xblock1, int xblock2, int yline, int blocks, int lines) {
+void ofApp::drawULineBlock(int xblock1, int xblock2, int yline, int blocks, int lines) {
     int bw, bh, x, y, w, h, xo, yo;
     int margin = OVLTXT_MARG;
 
@@ -1309,32 +1599,33 @@ void drawULineBlock(int xblock1, int xblock2, int yline, int blocks, int lines) 
     h = 2;
 
     ofFill();
+    ofSetColor(this->myColorDGray);
     ofDrawRectangle(x, y, w, h);
 }
 
 //--------------------------------------------------------------
-void drawHelp() {
+void ofApp::drawHelp() {
     int szl = HELP_LINES;
     int line;
     // background
-    ofSetColor(myColorBGDark);
+    ofSetColor(this->myColorBGDark);
     ofFill();
     ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
     // title(3 lines)
     line = 1;
-    ofSetColor(myColorYellow);
-    drawStringBlock(&myFontOvlayP2x, "Settings / Commands", 0, line, ALIGN_CENTER, 1, szl);
+    ofSetColor(this->myColorYellow);
+    this->drawStringBlock(&this->myFontOvlayP2x, "Settings / Commands", 0, line, ALIGN_CENTER, 1, szl);
     line += 2;
     // body
-    drawHelpBody(line);
+    this->drawHelpBody(line);
     // message(2 lines)
     line = HELP_LINES - 1;
-    ofSetColor(myColorYellow);
-    drawStringBlock(&myFontOvlayP, "Press H or Esc key to exit", 0, line, ALIGN_CENTER, 1, szl);
+    ofSetColor(this->myColorYellow);
+    this->drawStringBlock(&this->myFontOvlayP, "Press H or Esc key to exit", 0, line, ALIGN_CENTER, 1, szl);
 }
 
 //--------------------------------------------------------------
-void drawHelpBody(int line) {
+void ofApp::drawHelpBody(int line) {
     string value;
     int szl = HELP_LINES;
     int szb = 21;
@@ -1345,53 +1636,97 @@ void drawHelpBody(int line) {
     int blk4 = 17;
 
     // SYSTEM
-    ofSetColor(myColorWhite);
-    drawStringBlock(&myFontOvlayP, "System Command", blk0, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "Setting", blk2, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "Key", blk3, line, ALIGN_CENTER, szb, szl);
+    ofSetColor(this->myColorWhite);
+    this->drawStringBlock(&this->myFontOvlayP, "System Command", blk0, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Setting", blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Key", blk3, line, ALIGN_CENTER, szb, szl);
     line++;
-    ofSetColor(myColorYellow);
-    drawLineBlock(blk1, blk4, line, szb, szl);
+    ofSetColor(this->myColorYellow);
+    this->drawLineBlock(blk1, blk4, line, szb, szl);
     line++;
-    ofSetColor(myColorWhite);
+    ofSetColor(this->myColorWhite);
     // Set system statistics
-    ofSetColor(myColorDGray);
-    drawULineBlock(blk1, blk4, line + 1, szb, szl);
-    ofSetColor(myColorWhite);
-    value = sysStatEnabled ? "On" : "Off";
-    drawStringBlock(&myFontOvlayP, "Set System Statistics", blk1, line, ALIGN_LEFT, szb, szl);
-    drawStringBlock(&myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "S", blk3, line, ALIGN_CENTER, szb, szl);
+    ofSetColor(this->myColorDGray);
+    this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
+    ofSetColor(this->myColorWhite);
+    value = this->sysStatEnabled ? "On" : "Off";
+    this->drawStringBlock(&this->myFontOvlayP, "Set System Statistics", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "S", blk3, line, ALIGN_CENTER, szb, szl);
     line++;
     // Display help
-    ofSetColor(myColorDGray);
-    drawULineBlock(blk1, blk4, line + 1, szb, szl);
-    ofSetColor(myColorWhite);
-    drawStringBlock(&myFontOvlayP, "Display Help (Settings/Commands)", blk1, line, ALIGN_LEFT, szb, szl);
-    drawStringBlock(&myFontOvlayP, "-", blk2, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "H", blk3, line, ALIGN_CENTER, szb, szl);
+    ofSetColor(this->myColorDGray);
+    this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
+    ofSetColor(this->myColorWhite);
+    this->drawStringBlock(&this->myFontOvlayP, "Display Help (Settings/Commands)", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "-", blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "H", blk3, line, ALIGN_CENTER, szb, szl);
     line++;
 
     // VIEW
     line++;
     line++;
-    drawStringBlock(&myFontOvlayP, "View Command", blk0, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "Setting", blk2, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "Key", blk3, line, ALIGN_CENTER, szb, szl);
+    ofSetColor(this->myColorWhite);
+    this->drawStringBlock(&this->myFontOvlayP, "View Command", blk0, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Setting", blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Key", blk3, line, ALIGN_CENTER, szb, szl);
     line++;
-    ofSetColor(myColorYellow);
-    drawLineBlock(blk1, blk4, line, szb, szl);
+    ofSetColor(this->myColorYellow);
+    this->drawLineBlock(blk1, blk4, line, szb, szl);
     line++;
-    ofSetColor(myColorWhite);
+    ofSetColor(this->myColorWhite);
     // Set fullscreen mode
-    ofSetColor(myColorDGray);
-    drawULineBlock(blk1, blk4, line + 1, szb, szl);
-    ofSetColor(myColorWhite);
-    value = fullscreenEnabled ? "On" : "Off";
-    drawStringBlock(&myFontOvlayP, "Set Fullscreen Mode", blk1, line, ALIGN_LEFT, szb, szl);
-    drawStringBlock(&myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
-    drawStringBlock(&myFontOvlayP, "F, Esc", blk3, line, ALIGN_CENTER, szb, szl);
+    ofSetColor(this->myColorDGray);
+    this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
+    ofSetColor(this->myColorWhite);
+    value = this->fullscreenEnabled ? "On" : "Off";
+    this->drawStringBlock(&this->myFontOvlayP, "Set Fullscreen Mode", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "F, Esc", blk3, line, ALIGN_CENTER, szb, szl);
+    // VIEW
     line++;
+    line++;
+    ofSetColor(this->myColorWhite);
+    this->drawStringBlock(&this->myFontOvlayP, "Gate Detect Settings", blk0, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Setting", blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Key", blk3, line, ALIGN_CENTER, szb, szl);
+    line++;
+    ofSetColor(this->myColorYellow);
+    this->drawLineBlock(blk1, blk4, line, szb, szl);
+    line++;
+    ofSetColor(this->myColorWhite);
+    // Gate Detect Settings
+    value = (this->arLapMode == ARAP_MODE_NORM) ? "Normal" : ((this->arLapMode == ARAP_MODE_MIDDLE) ? "Middle" : ((this->arLapMode == ARAP_MODE_LOOSE) ? "Loose" : "UltraLoose"));
+    this->drawStringBlock(&this->myFontOvlayP, "Set AR Lap Timer Mode", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "A", blk3, line, ALIGN_CENTER, szb, szl);
+    line++;
+    // Flicker Threshold
+    ofSetColor(this->myColorDGray);
+    this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
+    ofSetColor(this->myColorWhite);
+    value = ofToString(this->flickerThreshold);
+    this->drawStringBlock(&this->myFontOvlayP, "Flicker Frame Count(Default 3 Frames)", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Left/Right", blk3, line, ALIGN_CENTER, szb, szl);
+    line++;
+    // ArUco Min Size
+    ofSetColor(this->myColorDGray);
+    this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
+    ofSetColor(this->myColorWhite);
+    value = ofToString(this->arucoMinSize, 2) +"%"; // 小数点以下2桁まで表示
+    this->drawStringBlock(&this->myFontOvlayP, "ArUco Min Size (% of Screen Width)", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "Up/Down", blk3, line, ALIGN_CENTER, szb, szl);
+    line++;
+    // Gate Detect Frequency
+    ofSetColor(this->myColorDGray);
+    this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
+    ofSetColor(this->myColorWhite);
+    value = this->gateDetectAllFrames ? "All Frames" : "Odd/Even Frames";
+    this->drawStringBlock(&this->myFontOvlayP, "Gate Detect Frequency", blk1, line, ALIGN_LEFT, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
+    this->drawStringBlock(&this->myFontOvlayP, "D", blk3, line, ALIGN_CENTER, szb, szl);
     line++;
     // Set camera view trimming
     //ofSetColor(myColorDGray);
@@ -1408,30 +1743,30 @@ void drawHelpBody(int line) {
 
     // RACE
 
-    ofSetColor(myColorWhite);
+    ofSetColor(this->myColorWhite);
 
 
 
 }
 
 //--------------------------------------------------------------
-void initOverlayMessage() {
-    ovlayMsgTimer = 0;
-    ovlayMsgString = "";
+void ofApp::initOverlayMessage() {
+    this->ovlayMsgTimer = 0;
+    this->ovlayMsgString = "";
 }
 
 //--------------------------------------------------------------
-void setOverlayMessage(string msg) {
-    if (overlayMode != OVLMODE_NONE && overlayMode != OVLMODE_MSG) {
+void ofApp::setOverlayMessage(string msg) {
+    if (this->overlayMode != OVLMODE_NONE && this->overlayMode != OVLMODE_MSG) {
         return;
     }
-    ovlayMsgTimer = OLVMSG_TIME;
-    ovlayMsgString = msg;
-    setOverlayMode(OVLMODE_MSG);
+    this->ovlayMsgTimer = OLVMSG_TIME;
+    this->ovlayMsgString = msg;
+    this->setOverlayMode(OVLMODE_MSG);
 }
 
 //--------------------------------------------------------------
-void drawOverlayMessageCore(ofxTrueTypeFontUC *font, string msg) {
+void ofApp::drawOverlayMessageCore(ofxTrueTypeFontUC *font, string msg) {
     float sw, fh, sx, sy, margin;
     margin = 10;
     sw = font->stringWidth(msg);
@@ -1439,27 +1774,27 @@ void drawOverlayMessageCore(ofxTrueTypeFontUC *font, string msg) {
     sx = (ofGetWidth() / 2) - (sw / 2);
     sy = (ofGetHeight() / 2) + (fh / 2);
     // background
-    ofSetColor(myColorBGDark);
+    ofSetColor(this->myColorBGDark);
     ofFill();
     ofDrawRectangle(sx - margin, sy - (fh + margin), sw + (margin * 2), fh + (margin * 2));
     // message
-    ofSetColor(myColorWhite);
+    ofSetColor(this->myColorWhite);
     font->drawString(msg, sx, sy);
 }
 
 //--------------------------------------------------------------
-void drawOverlayMessage() {
-    ofxTrueTypeFontUC *font = &myFontLap;
-    string msg = ovlayMsgString;
-    drawOverlayMessageCore(font, msg);
+void ofApp::drawOverlayMessage() {
+    ofxTrueTypeFontUC *font = &this->myFontLap;
+    string msg = this->ovlayMsgString;
+    this->drawOverlayMessageCore(font, msg);
 }
 
 
 
 //--------------------------------------------------------------
-void activateCursor() {
-    if (hideCursorTimer <= 0) {
+void ofApp::activateCursor() {
+    if (this->hideCursorTimer <= 0) {
         ofShowCursor();
     }
-    hideCursorTimer = HIDECUR_TIME;
+    this->hideCursorTimer = HIDECUR_TIME;
 }
