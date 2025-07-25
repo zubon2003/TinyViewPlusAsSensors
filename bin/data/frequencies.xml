@@ -1,18 +1,6 @@
 <frequencies>
-    <camera>
-        <index>0</index>
-        <channel>5705</channel>
-    </camera>
-    <camera>
-        <index>1</index>
-        <channel>5740</channel>
-    </camera>
-    <camera>
-        <index>2</index>
-        <channel>5800</channel>
-    </camera>
-    <camera>
-        <index>3</index>
-        <channel>5820</channel>
-    </camera>
+    <camera0>5705</camera0>
+    <camera1>5740</camera1>
+    <camera2>5800</camera2>
+    <camera3>5820</camera3>
 </frequencies>

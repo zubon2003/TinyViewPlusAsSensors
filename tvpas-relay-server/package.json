@@ -1,7 +1,7 @@
 {
   "name": "tvpas-relay-server",
-  "version": "1.0.0",
-  "description": "A relay server to connect TinyViewPlusAsSensors (OSC) to FPVTracksideCore (Socket.IO)",
+  "version": "1.1.0",
+  "description": "A relay server to connect FPVTracksideCore with tinyviewplusAsSensors.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,9 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "node-osc": "^9.1.0",
-    "socket.io": "^4.7.5"
+    "node-osc": "^9.0.1",
+    "socket.io": "^4.7.5",
+    "winston": "^3.13.0",
+    "serialport": "^12.0.0"
   }
 }

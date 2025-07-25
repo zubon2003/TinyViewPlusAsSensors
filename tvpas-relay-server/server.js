@@ -1,197 +1,71 @@
 const { Server } = require("socket.io");
 const osc = require('node-osc');
+const fs = require('fs');
+const { SerialPort } = require('serialport');
 
-// --- Settings ---
-const SOCKET_IO_PORT = 5000; //Socket.IO port that FPVTrackside references. (TCP) 
-const OSC_LISTEN_PORT = 8000; //
-const OSC_LISTEN_HOST = '127.0.0.1';
-const TVPAS_OSC_RECEIVE_PORT = 8001; // TVPASのOSC受信ポート
+const logger = require('./modules/logger.js');
+const state = require('./modules/state.js');
+const createSocketHandler = require('./modules/socketHandler.js');
+const createOscHandler = require('./modules/oscHandler.js');
 
-console.log("--- RotorHazard Relay for tinyviewplusAsSensors ---");
+// --- Load Configuration ---
+let config;
+try {
+    const configRaw = fs.readFileSync('config.json');
+    config = JSON.parse(configRaw);
+    logger.info("Configuration loaded successfully.");
+} catch (error) {
+    logger.error("FATAL: Could not read or parse config.json. Please ensure it exists and is valid JSON.");
+    logger.error(error);
+    process.exit(1); // Exit if config is missing or invalid
+}
 
-// --- In-memory state ---
-let tvpasReady = false; // NEW: Flag to indicate if TVPAS is connected
-let raceState = { status: 'stopped' };
-let pilotData = {}; // Store full pilot data { frequency: { seat: i, ... } }
+// --- Helper Functions ---
+function startServers(comPort) {
+    const io = new Server(config.socket_io_port, { cors: { origin: "*" } });
+    const oscServer = new osc.Server(config.relay_osc_listen_port, '0.0.0.0');
 
-// 1. Create Socket.IO Server
-const io = new Server(SOCKET_IO_PORT, { cors: { origin: "*" } });
-console.log(`[Socket.IO] Server listening on port ${SOCKET_IO_PORT}`);
-console.log("[System] Waiting for the first heartbeat from tinyviewplusAsSensors...");
+    io.on("connection", createSocketHandler(io, oscServer, config, comPort));
+    oscServer.on('message', createOscHandler(io, oscServer, comPort));
 
-// 2. Create OSC Server
-const oscServer = new osc.Server(OSC_LISTEN_PORT, OSC_LISTEN_HOST, () => {
-    console.log(`[OSC] Server listening on ${OSC_LISTEN_HOST}:${OSC_LISTEN_PORT}`);
-});
+    logger.info(`Socket.IO server listening on port ${config.socket_io_port}`);
+    logger.info(`OSC server listening on 0.0.0.0:${config.relay_osc_listen_port}`);
+    logger.info("Waiting for the first heartbeat from tinyviewplusAsSensors...");
+}
 
-io.on("connection", (socket) => {
-    console.log(`[Socket.IO] FPVTrackside client trying to connect: ${socket.id}`);
-
-    // --- HANDSHAKE GATE ---
-    // If TVPAS is not ready, do not proceed. FPVTrackside will timeout and retry.
-    if (!tvpasReady) {
-        console.log(`[Socket.IO] Denied connection from ${socket.id} because TVPAS is not ready. FPVTrackside should retry.`);
-        socket.disconnect(true);
-        return;
+function waitForExit() {
+    logger.info("Press any key to exit.");
+    if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true);
+        process.stdin.resume();
+        process.stdin.on('data', process.exit.bind(process, 0));
     }
-    
-    console.log(`[Socket.IO] FPVTrackside client accepted: ${socket.id}`);
+}
 
-    // --- Normal Event Handlers ---
-    socket.on("ts_server_info", (callback) => {
-        console.log("[Socket.IO] Received 'ts_server_info' request.");
-        if (callback) callback({ release_version: "1.0.0", name: "TinyViewPlus As A Sensor" });
-    });
+// --- Main Application Logic ---
+if (config.useComPort) {
+    try {
+        const comPort = new SerialPort({ path: config.comPort, baudRate: 115200 });
 
-    socket.on("ts_server_time", (callback) => {
-        console.log("[Socket.IO] Received 'ts_server_time' request. Forwarding to TVPAS via OSC.");
-        const tvpasOscClient = new osc.Client(OSC_LISTEN_HOST, TVPAS_OSC_RECEIVE_PORT);
-
-        const responseListener = (msgArray) => {
-            const address = msgArray[0];
-            if (address === '/server_time_response') {
-                const serverTime = msgArray[1];
-                console.log(`[OSC] Received /server_time_response from TVPAS with time: ${serverTime}`);
-                if (callback) {
-                    callback(serverTime);
-                    console.log(`[Socket.IO] Sent time (${serverTime}) back to FPVTrackside.`);
-                }
-                oscServer.removeListener('message', responseListener);
-                clearTimeout(timeout);
-                tvpasOscClient.close();
-            }
-        };
-        
-        oscServer.on('message', responseListener);
-
-        const timeout = setTimeout(() => {
-            console.error("[OSC] Timeout: Did not receive /server_time_response from TVPAS within 2 seconds.");
-            oscServer.removeListener('message', responseListener);
-            if (callback) {
-                callback(null);
-                console.log("[Socket.IO] Responded with null to FPVTrackside due to timeout.");
-            }
-            tvpasOscClient.close();
-        }, 2000);
-
-        const requestMsg = new osc.Message('/get_server_time');
-        tvpasOscClient.send(requestMsg, (err) => {
-            if (err) {
-                console.error('[OSC] FATAL ERROR sending /get_server_time to TVPAS:', err);
-                clearTimeout(timeout);
-                oscServer.removeListener('message', responseListener);
-                if (callback) {
-                    callback(null);
-                    console.log("[Socket.IO] Responded with null to FPVTrackside due to OSC send error.");
-                }
-                tvpasOscClient.close();
-            } else {
-                console.log(`[OSC] Sent /get_server_time request to TVPAS (${OSC_LISTEN_HOST}:${TVPAS_OSC_RECEIVE_PORT}).`);
-            }
-        });
-    });
-
-    socket.on("ts_frequency_setup", (data, callback) => {
-        console.log("[Socket.IO] Received 'ts_frequency_setup':", data);
-        pilotData = {};
-        if (data && data.f) {
-            for (let i = 0; i < data.f.length; i++) {
-                const freq = data.f[i];
-                pilotData[freq] = { 
-                    seat: i, 
-                    band: data.b ? data.b[i] : null,
-                    channel: data.c ? data.c[i] : null
-                };
-            }
-        }
-        console.log("[State] Updated pilot data map:", pilotData);
-        if (callback) callback(true);
-    });
-
-    socket.on("ts_race_stage", (data, callback) => {
-        console.log("[Socket.IO] Received 'ts_race_stage':", data);
-        raceState.status = 'racing';
-        console.log("[State] Race is now ACTIVE.");
-
-        socket.emit("stage_ready", { pi_starts_at_s: data.start_time_s });
-        console.log("[Socket.IO] Emitted 'stage_ready'.");
-
-        const tvpasOscClient = new osc.Client(OSC_LISTEN_HOST, TVPAS_OSC_RECEIVE_PORT);
-        const tvpasStageReadyMsg = new osc.Message('/stage_ready');
-        tvpasStageReadyMsg.append(data.start_time_s);
-        tvpasOscClient.send(tvpasStageReadyMsg, (err) => {
-            if (err) {
-                console.error('[OSC] FATAL ERROR sending /stage_ready to TVPAS:', err);
-            } else {
-                console.log(`[OSC] Sent /stage_ready to TVPAS with data: ${data.start_time_s}`);
-            }
-            tvpasOscClient.close();
+        comPort.on('open', () => {
+            logger.info(`Successfully opened COM port: ${config.comPort}`);
+            startServers(comPort);
         });
 
-        if (callback) {
-            callback();
-            console.log("[Socket.IO] Acknowledged ts_race_stage.");
-        }
-    });
+        comPort.on('error', (err) => {
+            logger.error(`FATAL: Could not open COM port ${config.comPort}. Please check the port name and permissions.`);
+            logger.error(err.message);
+            logger.error("Server startup aborted.");
+            waitForExit();
+        });
 
-    socket.on("ts_race_stop", (cb) => { raceState.status = 'stopped'; console.log("[State] Race stopped."); if (cb) cb(); });
-    socket.on("ts_race_abort", (cb) => { raceState.status = 'stopped'; console.log("[State] Race aborted."); if (cb) cb(); });
-    socket.on("disconnect", () => console.log(`[Socket.IO] Client disconnected: ${socket.id}`));
-});
-
-
-oscServer.on('message', (msgArray) => {
-    const address = msgArray[0];
-    const args = msgArray.slice(1);
-
-    if (address === '/heartbeat') {
-        if (!tvpasReady) {
-            tvpasReady = true;
-            console.log("[System] First heartbeat received! tinyviewplusAsSensors is now connected.");
-            console.log("[System] The relay is now active and will accept connections from FPVTrackside.");
-        }
-        
-        const jsonString = args[0];
-        if (typeof jsonString === 'string') {
-            try {
-                const heartbeat_data = JSON.parse(jsonString);
-                if (heartbeat_data.loop_time && Array.isArray(heartbeat_data.loop_time)) {
-                    heartbeat_data.loop_time = heartbeat_data.loop_time.map(Math.round);
-                }
-                io.emit('heartbeat', heartbeat_data);
-            } catch (e) {
-                console.error(`[OSC] Error parsing heartbeat JSON: ${e.message}`);
-            }
-        }
-    } else if (address === '/ts_lap_data') {
-        console.log(`[OSC] Handling /ts_lap_data. Current race status: ${raceState.status}`);
-
-        if (raceState.status !== 'racing') {
-            console.log(`[Warning] Ignoring lap data because race status is '${raceState.status}', not 'racing'.`);
-            return;
-        }
-
-        const lapTime = args[0];
-        const frequency = args[1];
-        const peakRssi = args[2];
-
-        const pilot = pilotData[frequency];
-
-        if (!pilot) {
-            console.log(`[Warning] Ignoring lap for unassigned frequency: ${frequency}`);
-            return;
-        }
-
-        const lapData = {
-            seat: pilot.seat,
-            frequency: frequency,
-            peak_rssi: peakRssi,
-            lap_time: lapTime
-        };
-
-        io.emit('ts_lap_data', lapData);
-        console.log(`[Socket.IO] Emitted 'ts_lap_data':`, lapData);
+    } catch (error) {
+        logger.error(`FATAL: Error creating COM port instance for ${config.comPort}.`);
+        logger.error(error);
+        logger.error("Server startup aborted.");
+        waitForExit();
     }
-    // We don't log every single message here anymore to reduce noise, only known ones.
-});
-
+} else {
+    // Start servers without a COM port if useComPort is false
+    startServers(null);
+}
