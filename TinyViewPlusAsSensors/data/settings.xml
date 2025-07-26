@@ -1,7 +1,7 @@
 <system>
     <sysStat>1</sysStat>
     <logEnabled>0</logEnabled>
-    <allFrameDetect>1</allFrameDetect>
+    <allFrameDetect>0</allFrameDetect>
 </system>
 <view>
     <fullscreen>0</fullscreen>

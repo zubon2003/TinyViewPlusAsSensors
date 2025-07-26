@@ -1,3 +1,6 @@
+//Original https://github.com/AlLaguna/ESP-NOW-WLED-Controller/
+//GPL3.0 License
+
 #include <WiFi.h>
 #include <esp_now.h>
 #include <Arduino.h>

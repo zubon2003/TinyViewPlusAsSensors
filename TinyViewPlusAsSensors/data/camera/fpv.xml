@@ -1,16 +1,16 @@
 <camera>
-    <name>C8 USB3.0 Video</name>
-    <camnum>4</camnum>
+    <name>dummy</name>
+    <camnum>1</camnum>
     <description>4:3</description>
     <grab>
-        <width>1280</width>
-        <height>720</height>
+        <width>640</width>
+        <height>480</height>
     </grab>
     <crop>
-        <x>160</x>
+        <x>0</x>
         <y>0</y>
-        <width>960</width>
-        <height>720</height>
+        <width>640</width>
+        <height>480</height>
     </crop>
     <draw>
         <aspectRatio>4:3</aspectRatio>

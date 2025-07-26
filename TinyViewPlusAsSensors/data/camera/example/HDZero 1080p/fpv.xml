@@ -1,0 +1,18 @@
+<camera>
+    <name>USB[2-3] Video</name>
+    <camnum>4</camnum>
+    <description>4:3</description>
+    <grab>
+        <width>1920</width>
+        <height>1080</height>
+    </grab>
+    <crop>
+        <x>240</x>
+        <y>0</y>
+        <width>1440</width>
+        <height>1080</height>
+    </crop>
+    <draw>
+        <aspectRatio>4:3</aspectRatio>
+    </draw>
+</camera>
