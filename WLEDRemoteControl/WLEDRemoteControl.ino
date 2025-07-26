@@ -1,4 +1,3 @@
-//GPL-3.0License
 #include <WiFi.h>
 #include <esp_now.h>
 #include <Arduino.h>
@@ -19,16 +18,6 @@
 #define PRESET_FOUR 19
 #define BRIGHT_UP 9
 #define BRIGHT_DOWN 8
-
-//
-#define NUM_TVP_CHANNELS 3
-#define LED_DULATION 1000 //1000ms
-uint8_t readByte;
-uint8_t mask = 0b00000011;
-bool ledWaitRelease = false;
-uint32_t ledReleaseMillis = 0;
-//State of the LED
-RTC_DATA_ATTR bool is_lightOn = false;
 
 //Sequence number
 RTC_DATA_ATTR uint32_t seq = 1;
@@ -57,6 +46,10 @@ typedef struct message_structure {
 } message_structure;
 
 message_structure message;
+
+// Timer variables for non-blocking delay
+unsigned long presetTimer = 0;
+bool tempPresetActive = false;
 
 
 //Callback on data sent. If the message delivery fails, retry until success or MAX_RETRIES
@@ -92,7 +85,7 @@ void sendMessage(int button) {
   message.button = button;
 
   esp_err_t result = esp_now_send(macAddress, (uint8_t *)&message, sizeof(message));
-  
+
   //Display the error
   switch (result) {
     case ESP_OK:
@@ -131,7 +124,7 @@ void sendMessage(int button) {
 
 void setup(){
   Serial.begin(115200);
-  pinMode(2,OUTPUT);
+
 
   //Wifi configuration
   WiFi.mode(WIFI_STA);
@@ -143,50 +136,51 @@ void setup(){
     return;
   }
 
-  //Message sending callback function 
+  //Message sending callback function
   esp_now_register_send_cb(sentStatusAndRetries);
-  
+
   memcpy(peerInfo.peer_addr, macAddress, 6);
   peerInfo.channel = CHANNEL;  
   peerInfo.encrypt = false;
-  
-  //Add peer        
+
+  //Add peer
   if (esp_now_add_peer(&peerInfo) != ESP_OK){
     //Serial.println("Peer fail");
     return;
   }
 
-  //Serial.println("Setup complete. Turning light on and starting preset cycle.");
-
-  // First, turn the light on to make sure the presets are visible
-  sendMessage(ON);
-  // Wait a bit for the command to be processed before starting the cycle
-  delay(500);
-  sendMessage(19);
+  // Set initial preset
+  sendMessage(PRESET_FOUR);
+  delay(200); // Short delay to ensure the first message is sent
 }
 
 void loop(){
-  // Cycle through presets 1 to 4 with a 5-second interval
-  if (Serial.available() > 0) {
-    readByte = Serial.read();
-    //if (readByte == 0xFF) Serial.write(0xFF);
-    uint8_t tempReadByte = readByte;
+  // Check if the temporary preset duration has expired
+  if (tempPresetActive && (millis() - presetTimer >= 1000)) {
+    sendMessage(PRESET_FOUR);
+    tempPresetActive = false;
+  }
 
-    for (uint8_t i = 0; i < NUM_TVP_CHANNELS; i++) {
-      if ((tempReadByte & mask) > 0) {
-        if (!ledWaitRelease) {
-          sendMessage(i + 16);
-          digitalWrite(2,HIGH);
-          ledWaitRelease = true;
-          ledReleaseMillis = millis() + LED_DULATION;
-        }
-      }
-      tempReadByte = tempReadByte >> 2;
+  // Check for new commands from serial
+  if (Serial.available() > 0) {
+    uint8_t receivedByte = Serial.read();
+    digitalWrite(2,HIGH);
+    if (receivedByte == '0') {
+      sendMessage(PRESET_ONE);
+      presetTimer = millis();
+      tempPresetActive = true;
+    }
+
+    if (receivedByte == '1') {
+      sendMessage(PRESET_TWO);
+      presetTimer = millis();
+      tempPresetActive = true;
+    }
+
+    if (receivedByte == '2') {
+      sendMessage(PRESET_THREE);
+      presetTimer = millis();
+      tempPresetActive = true;
     }
   }
- if (ledWaitRelease && (millis() > ledReleaseMillis)) {
-    ledWaitRelease = false;
-    digitalWrite(2,LOW);
-    sendMessage(19);
- }
 }
