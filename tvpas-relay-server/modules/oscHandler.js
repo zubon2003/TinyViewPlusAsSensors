@@ -51,14 +51,18 @@ function handleLapData(io, msgArray, comPort) {
     io.emit('ts_lap_data', lapData);
     logger.info("Emitted 'ts_lap_data' to FPVTrackside:", lapData);
 
-    if (comPort) {
+    if (comPort && comPort.isOpen) {
         const seat = pilot.seat.toString();
         comPort.write(seat, (err) => {
             if (err) {
+                // Log the error but don't crash. The port might have closed just now.
                 return logger.error('Error writing to COM port: ', err.message);
             }
-            logger.info(`Sent "${seat}\n" to COM port.`);
+            logger.info(`Sent "${seat}" to COM port.`);
         });
+    } else if (comPort) {
+        // Optional: Log a warning if the port exists but is closed.
+        logger.warn(`COM port ${comPort.path} is not open. Cannot send lap data.`);
     }
 
     if (typeof markerIds === 'string') {

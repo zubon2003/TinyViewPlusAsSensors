@@ -102,7 +102,7 @@ function createSocketHandler(io, oscServer, config, comPort) {
                             if (err) {
                                 return logger.error('Error writing to COM port: ', err.message);
                             }
-                            logger.info('Sent "S\\n" to COM port.');
+                            logger.info('Sent "S" to COM port.');
                         });
                     }, delay);
                 } else {
@@ -125,7 +125,7 @@ function createSocketHandler(io, oscServer, config, comPort) {
                         if (err) {
                             return logger.error('Error writing to COM port: ', err.message);
                         }
-                        logger.info('Sent "E\\n" to COM port.');
+                        logger.info('Sent "E" to COM port.');
                     });
                 }
                 if (cb) cb();
