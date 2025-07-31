@@ -4,5 +4,5 @@
   "tvpas_host": "127.0.0.1",
   "tvpas_osc_listen_port": 8001,
   "useComPort": false,
-  "comPort": "COM12"
+  "comPort": "COM3"
 }
