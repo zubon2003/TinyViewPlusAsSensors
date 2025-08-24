@@ -1,12 +1,16 @@
 //Yatutose LED CONTROL SYSTEM(YLED) MIT LISENCE
 
+
+
 #include <FastLED.h>
 #include <esp_now.h>
 #include <WiFi.h>
 #include "esp_wifi.h"
 
+#define DATA_PIN 10
+#define CHANNEL 6
+
 #define NUM_LEDS 300
-#define DATA_PIN 9
 #define MAX_COMMAND_LENGTH 50
 #define BLINK_INTERVAL 150
 #define BLINK_COUNT 3
@@ -56,10 +60,10 @@ void setup() {
   Serial.println(WiFi.macAddress());
 
   // Set ESP-NOW channel (must match master)
-  if (esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+  if (esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
     Serial.println("Error setting WiFi channel");
   } else {
-    Serial.println("WiFi channel set to 1");
+    Serial.println("WiFi channel set");
   }
 
   // Initialize ESP-NOW

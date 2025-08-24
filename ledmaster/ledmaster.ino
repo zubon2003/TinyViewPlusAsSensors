@@ -1,3 +1,10 @@
+
+#define CHANNEL 6
+#define CAM0_COMMAND "L FF0000" //RED
+#define CAM1_COMMAND "L 00FF00" //GREEN
+#define CAM2_COMMAND "L 0000FF" //BLUE
+#define CAM3_COMMAND "L FFFF00" //YELLOW
+
 #define DEBUG false
 
 #include <esp_now.h>
@@ -41,8 +48,7 @@ void setup() {
 #endif
 
   // Set a fixed channel (must match on master and slave)
-  int channel = 1;
-  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
 
   // Initialize ESP-NOW
   if (esp_now_init() == ESP_OK) {
@@ -60,7 +66,7 @@ void setup() {
   // Add broadcast peer
   esp_now_peer_info_t peerInfo = {};
   memcpy(peerInfo.peer_addr, broadcastAddr, 6);
-  peerInfo.channel = channel;
+  peerInfo.channel = CHANNEL;
   peerInfo.encrypt = false;
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
 #if DEBUG
@@ -93,13 +99,16 @@ void loop() {
         sendCommand("S 20");//Slow Rainbow
         break;
       case '0':
-        sendCommand("L FF0000"); // Red
+        sendCommand(CAM0_COMMAND);
         break;
       case '1':
-        sendCommand("L 00FF00"); // Green
+        sendCommand(CAM1_COMMAND);
         break;
       case '2':
-        sendCommand("L 0000FF"); // Blue
+        sendCommand(CAM2_COMMAND);
+        break;
+      case '3':
+        sendCommand(CAM3_COMMAND);
         break;
       // default: ignore any other characters
     }
