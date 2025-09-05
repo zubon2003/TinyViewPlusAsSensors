@@ -8,7 +8,7 @@
 #include "esp_wifi.h"
 
 #define DATA_PIN 10
-#define CHANNEL 6
+#define CHANNEL 14
 
 #define NUM_LEDS 300
 #define MAX_COMMAND_LENGTH 50
@@ -52,6 +52,7 @@ void setup() {
   // WiFi setup
   Serial.println("Initializing WiFi...");
   WiFi.mode(WIFI_STA);
+  esp_wifi_set_ps(WIFI_PS_NONE);
   WiFi.disconnect();
   delay(500);
 
