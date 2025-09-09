@@ -1,12 +1,6 @@
 
 
---------------------------------------- 2025-07-26-14-50-37-959
+--------------------------------------- 2025-09-09-23-01-38-766
 [notice ] ---
 [notice ] ---
-[notice ] ---
-[notice ] ---
-[notice ] ---
-[notice ] ---
-[notice ] ---
-[notice ] ---
-[notice ] ofDirectShowGrabber: initGrabber(): choosing 2
+[notice ] ofDirectShowGrabber: initGrabber(): choosing 0

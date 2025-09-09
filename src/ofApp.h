@@ -10,11 +10,12 @@
 #include "ofxJoystick.h"
 #include "ofxXmlSettings.h"
 #include "ofFileUtils.h" // Add this line
+#include "ofxOpenCv.h"
 
 /* ---------- definitions ---------- */
 
 // system
-#define APP_VER         "v1.0.0 beta1"
+#define APP_VER         "v1.0.1"
 
 #define DEBUG_ENABLED   false
 #define HELP_LINES      35  // must be <= OVLTXT_LINES
@@ -40,15 +41,13 @@
 #define SNM_VIEW_CAMTRM "view:camTrim"
 #define SNM_VIEW_CAMFRM "view:camFrame"
 #define SNM_LOG_ENABLED "system:logEnabled"
-#define SNM_RACE_ARMODE "race:arMode"
 
 // OSC
-#define SNM_OSC_HOST "osc:host"
-#define SNM_OSC_PORT "osc:port"
-#define SNM_OSC_RECEIVE_HOST "osc:receiveHost" // 新しい設定名
-#define SNM_OSC_RECEIVE_PORT "osc:receivePort" // 新しい設定名
+#define SNM_OSC_SENDER_HOST "osc:host"
+#define SNM_OSC_SENDER_PORT "osc:port"
+#define SNM_OSC_RECEIVER_PORT "osc:receivePort"
 #define SNM_ARUCO_MIN_SIZE "aruco:minSize"
-#define SNM_FLICKER_THRESHOLD "aruco:flickerThreshold"
+#define SNM_FLICKER_LENGTH "aruco:flickerLength"
 
 // AR lap timer
 #define ARAP_MODE_NORM  0
@@ -145,16 +144,11 @@
 #define INFO_HEIGHT     10
 #define WATCH_HEIGHT    40
 #define WATCH_OFFSET_Y  10
-// sound
-#define SND_BEEP_FILE   "system/beep.wav"
-#define SND_BEEP3_FILE  "system/beep3.wav"
-#define SND_COUNT_FILE  "system/count.wav"
-#define SND_FINISH_FILE "system/finish.wav"
-#define SND_NOTIFY_FILE "system/notify.wav"
-#define SND_CANCEL_FILE "system/cancel.wav"
+
 // OSC
-#define OSC_DEFAULT_HOST "localhost"
-#define OSC_DEFAULT_PORT 8000
+#define OSC_SENDER_DEFAULT_HOST "localhost"
+#define OSC_SENDER_DEFAULT_PORT 8000
+#define OSC_RECEIVER_DEFAULT_PORT 8001
 // AR lap timer
 #define ARAP_MODE_NORM  0
 #define ARAP_MODE_MIDDLE 1
@@ -206,8 +200,7 @@ public:
     bool needCrop;
     bool needResize;
     bool isWide;
-    ofPixels resizedPixels;
-    ofImage resizedImage;
+    ofxCvColorImage resizedImage;
 
     // lap
     int lapPosX;
@@ -221,10 +214,14 @@ public:
     bool enoughMarkers;
     int flickerCount;
     int flickerValidCount;
+    float flickerEndtime;
+    float flickerValidEndtime;
     bool rssiOutput;
+    // lap timer
+    int lastValidMarkerId; // Changed from vector to int
     bool isDroneInGate;
-    int frequency;   // 追加: カメラの周波数 (MHz)
-    float loopTime;  // 追加: このカメラの処理にかかった時間 (ミリ秒)
+    float loopTime;  // Added: Time taken for this camera's processing (milliseconds)
+    int frequency;
 };
 
 
@@ -264,7 +261,7 @@ public:
     void loadFrequencies();
     void saveFrequencies();
     int calculate_pseudo_rssi(int camIndex);
-    void onStageReady(ofxOscMessage& m); // 追加
+    void onStageReady(ofxOscMessage& m); // Added
 
     // Main setup and race logic
     void setupMain();
@@ -326,7 +323,7 @@ private:
     int camCheckCount;
     int tvpScene;
     bool sysStatEnabled;
-    bool logEnabled; 
+    bool logEnabled;
 
     // view
     ofVideoGrabber grabber[CAMERA_MAXNUM];
@@ -337,6 +334,7 @@ private:
     ofxTrueTypeFontUC myFontInfo1m, myFontInfo1p, myFontInfoWatch;
     ofImage logoLargeImage, logoSmallImage;
     ofImage wallImage;
+    ofxCvColorImage multicamSource;
     float wallRatio;
     int wallDrawWidth;
     int wallDrawHeight;
@@ -356,6 +354,8 @@ private:
     float elapsedTime;
     int raceResultTimer;
     bool frameTick;
+    int flickerLength;
+
     // overlay
     ofxTrueTypeFontUC myFontOvlayP, myFontOvlayP2x, myFontOvlayM;
     int overlayMode;
@@ -365,11 +365,10 @@ private:
 
     // OSC Communication
     ofxOscSender oscSender;
-    ofxOscReceiver oscReceiver; // OSC 受信機
-    string oscHost;
-    int oscPort;
-    string oscReceiveHost; // OSC 受信ホスト
-    int oscReceivePort;    // OSC 受信ポート
+    ofxOscReceiver oscReceiver; // OSC Receiver
+    int oscReceivePort;    // OSC Receive Port
+    string oscSenderHost; // OSC Receive Host
+    int oscSenderPort;    // OSC Receive Port
 
     // Frequency settings
     ofxXmlSettings frequencyXml;
@@ -401,7 +400,7 @@ private:
     void toggleLog();
     void toggleARLap();
     void toggleGateDetectFrequency(); // Add this line
-    void changeFlickerThreshold(int val);
+    void changeFlickerLength(int val);
     void changeArucoMinSize(int val);
     void updateArLapModeSettings();
 };
