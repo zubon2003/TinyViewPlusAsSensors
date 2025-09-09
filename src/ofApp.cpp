@@ -1,7 +1,7 @@
 // charcter encoding is UTF-8
 
 #include "ofApp.h"
-#include <chrono> // 時間測定のために追加
+#include <chrono> // Added for time measurement
 #ifdef TARGET_WIN32
 #include <sapi.h>
 #include <atlcomcli.h>
@@ -54,17 +54,11 @@ void ofApp::setupInit() {
     this->setOverlayMode(OVLMODE_NONE);
     this->initOverlayMessage();
     // AR lap timer
-    this->beepSound.load(SND_BEEP_FILE);
-    this->beep3Sound.load(SND_BEEP3_FILE);
-    this->countSound.load(SND_COUNT_FILE);
-    this->finishSound.load(SND_FINISH_FILE);
-    this->notifySound.load(SND_NOTIFY_FILE);
-    this->cancelSound.load(SND_CANCEL_FILE);
     this->raceStarted = false;
     this->elapsedTime = 0;
     this->raceResultTimer = -1;
     this->arLapMode = DFLT_ARAP_MODE;
-    this->flickerThreshold = 3;
+    this->flickerLength = 100;
     // extra camera
     this->camProfFpvExtra.enabled = false;
     //
@@ -78,7 +72,7 @@ void ofApp::loadSettingsFile() {
     // SYSTEM
     // system statistics
     this->sysStatEnabled = xmlSettings.getValue(SNM_SYS_STAT, this->sysStatEnabled);
-    this->logEnabled = xmlSettings.getValue(SNM_LOG_ENABLED, true);
+    this->logEnabled = xmlSettings.getValue(SNM_LOG_ENABLED, false);
 
     // VIEW
     // fullscreen
@@ -89,15 +83,13 @@ void ofApp::loadSettingsFile() {
     this->cameraFrameEnabled = xmlSettings.getValue(SNM_VIEW_CAMFRM, this->cameraFrameEnabled);
 
     // OSC
-    this->oscHost = xmlSettings.getValue(SNM_OSC_HOST, OSC_DEFAULT_HOST);
-    this->oscPort = xmlSettings.getValue(SNM_OSC_PORT, OSC_DEFAULT_PORT);
-    this->oscReceiveHost = xmlSettings.getValue(SNM_OSC_RECEIVE_HOST, "127.0.0.1"); // デフォルト値
-    this->oscReceivePort = xmlSettings.getValue(SNM_OSC_RECEIVE_PORT, 8001); // デフォルト値
-
+    this->oscSenderHost = xmlSettings.getValue(SNM_OSC_SENDER_HOST, OSC_SENDER_DEFAULT_HOST);
+    this->oscSenderPort = xmlSettings.getValue(SNM_OSC_SENDER_PORT, OSC_SENDER_DEFAULT_PORT);
+    this->oscReceivePort = xmlSettings.getValue(SNM_OSC_RECEIVER_PORT, OSC_RECEIVER_DEFAULT_PORT);
     // ArUco
     this->arucoMinSize = xmlSettings.getValue(SNM_ARUCO_MIN_SIZE, 5);
-    this->arLapMode = xmlSettings.getValue(SNM_RACE_ARMODE, this->arLapMode);
-    this->flickerThreshold = xmlSettings.getValue(SNM_FLICKER_THRESHOLD, this->flickerThreshold);
+    this->arLapMode = xmlSettings.getValue("aruco:arMode", this->arLapMode);
+    this->flickerLength = xmlSettings.getValue(SNM_FLICKER_LENGTH, this->flickerLength);
 
     //GATE DETECT FREQUENCY
     this->gateDetectAllFrames = xmlSettings.getValue(SNM_DTCTALL_FRM, this->gateDetectAllFrames);
@@ -118,15 +110,14 @@ void ofApp::saveSettingsFile() {
     xmlSettings.setValue(SNM_VIEW_CAMFRM, this->cameraFrameEnabled);
 
     // OSC
-    xmlSettings.setValue(SNM_OSC_HOST, this->oscHost);
-    xmlSettings.setValue(SNM_OSC_PORT, this->oscPort);
-    xmlSettings.setValue(SNM_OSC_RECEIVE_HOST, this->oscReceiveHost);
-    xmlSettings.setValue(SNM_OSC_RECEIVE_PORT, this->oscReceivePort);
+    xmlSettings.setValue(SNM_OSC_SENDER_HOST, this->oscSenderHost);
+    xmlSettings.setValue(SNM_OSC_SENDER_PORT, this->oscSenderPort);
+    xmlSettings.setValue(SNM_OSC_RECEIVER_PORT, this->oscReceivePort);
 
     // ArUco
     xmlSettings.setValue(SNM_ARUCO_MIN_SIZE, this->arucoMinSize);
-    xmlSettings.setValue(SNM_RACE_ARMODE, this->arLapMode);
-    xmlSettings.setValue(SNM_FLICKER_THRESHOLD, this->flickerThreshold);
+    xmlSettings.setValue("aruco:arMode", this->arLapMode);
+    xmlSettings.setValue(SNM_FLICKER_LENGTH, this->flickerLength);
 
     xmlSettings.setValue(SNM_DTCTALL_FRM, this->gateDetectAllFrames);
 
@@ -145,26 +136,25 @@ void ofApp::loadFrequencies() {
         cameraFrequencyMap.clear();
         
         frequencyXml.pushTag("frequencies");
-        int numCameras = frequencyXml.getNumTags("camera");
-        for (int i = 0; i < numCameras; ++i) {
-            frequencyXml.pushTag("camera", i);
-            int camIndex = frequencyXml.getValue("index", -1);
-            int channel = frequencyXml.getValue("channel", 0);
-            if (camIndex != -1) { // Allow 0 as a valid channel for disabling
-                cameraFrequencyMap[camIndex] = channel;
+        for (int i = 0; i < CAMERA_MAXNUM; ++i) {
+            string tagName = "camera" + ofToString(i);
+            if (frequencyXml.tagExists(tagName)) {
+                int channel = frequencyXml.getValue(tagName, 0);
+                if (channel != 0) {
+                    cameraFrequencyMap[i] = channel;
+                }
             }
-            frequencyXml.popTag();
         }
-        frequencyXml.popTag(); // Corresponding popTag
+        frequencyXml.popTag();
 
     } else {
         if (this->logEnabled) ofLogWarning("ofApp::loadFrequencies") << "Could not load " << filename << ". Using default values.";
         
         // Default values
-        cameraFrequencyMap[0] = 5800;
-        cameraFrequencyMap[1] = 5820;
-        cameraFrequencyMap[2] = 5840;
-        cameraFrequencyMap[3] = 5860;
+        cameraFrequencyMap[0] = 0;
+        cameraFrequencyMap[1] = 0;
+        cameraFrequencyMap[2] = 0;
+        cameraFrequencyMap[3] = 0;
         
         saveFrequencies(); // Save defaults to file
     }
@@ -202,9 +192,8 @@ void ofApp::saveFrequencies() {
     for (auto const& pair : cameraFrequencyMap) { // Modified loop
         int camIndex = pair.first;
         int channel = pair.second;
-        int tagNum = frequencyXml.addTag("camera");
-        frequencyXml.setValue("camera:index", camIndex, tagNum);
-        frequencyXml.setValue("camera:channel", channel, tagNum);
+        string tagName = "camera" + ofToString(camIndex);
+        frequencyXml.setValue(tagName, channel);
     }
     
     frequencyXml.popTag();
@@ -281,11 +270,11 @@ void ofApp::setupCamCheck() {
 
 //--------------------------------------------------------------
 void ofApp::reloadCameras() {
-    // clear
+    // Clear
     for (int i = 0; i < this->cameraNum; i++) {
         grabber[i].close();
     }
-    // load
+    // Load
     ofVideoGrabber tmpgrb;
     vector<ofVideoDevice> devices = tmpgrb.listDevices();
     tvpCamProf* prof = &this->camProfFpvExtra;
@@ -415,8 +404,35 @@ void ofApp::setupMain() {
     // camera
     this->cameraNumVisible = this->cameraNum;
     setViewParams();
+
+    if (isMultiView) {
+        multicamSource.allocate(grabber[0].getWidth(), grabber[0].getHeight());
+    }
+
     for (int i = 0; i < this->cameraNum; i++) {
         camView[i].moveSteps = 1;
+
+        // Allocation for resized image
+        tvpCamView* cv = &camView[i];
+        float aspectRatio = (float)cv->cropW / cv->cropH;
+        int targetWidth = CAMERA_WIDTH;
+        int targetHeight = CAMERA_HEIGHT;
+
+        if (cv->isWide == true) {
+            targetHeight = CAMERA_HEIGHT * 0.75;
+        }
+
+        int newWidth, newHeight;
+        float targetAspectRatio = (float)targetWidth / targetHeight;
+
+        if (aspectRatio > targetAspectRatio) {
+            newWidth = targetWidth;
+            newHeight = round(targetWidth / aspectRatio);
+        } else {
+            newHeight = targetHeight;
+            newWidth = round(targetHeight * aspectRatio);
+        }
+        cv->resizedImage.allocate(newWidth, newHeight);
     }
     // AR laptimer
     for (int i = 0; i < this->cameraNum; i++) {
@@ -424,11 +440,10 @@ void ofApp::setupMain() {
         camView[i].aruco.setMinMaxMarkerDetectionSize(this->arucoMinSize*0.01f, 0.25);
         camView[i].aruco.setThreaded(true);
         camView[i].aruco.setup2d(CAMERA_WIDTH, CAMERA_HEIGHT);
-    }
-    //For RotorHazard
-    for (int i = 0; i < this->cameraNum; i++) {
-        this->camView[i].rssiOutput = false;
-        this->camView[i].isDroneInGate = false;
+        camView[i].flickerEndtime = 0;
+        camView[i].rssiOutput = false;
+        camView[i].isDroneInGate = false;
+        camView[i].flickerEndtime = 0;
     }
 
     this->initRaceVars();
@@ -438,7 +453,7 @@ void ofApp::setupMain() {
 //--------------------------------------------------------------
 void ofApp::setup() {
     string logPath = ofFilePath::getAbsolutePath(ofFilePath::getEnclosingDirectory(ofFilePath::getCurrentExePath()) + "of_log.txt");
-    ofLogToFile(logPath, false); // ログをof_log.txtに出力し、既存のログをクリアします
+    ofLogToFile(logPath, false); // Output logs to of_log.txt and clear existing logs
     this->setupInit();
     this->loadSettingsFile();
     this->updateArLapModeSettings();
@@ -446,8 +461,8 @@ void ofApp::setup() {
     this->saveSettingsFile();
 
     // Initialize OSC Sender
-    oscSender.setup(oscHost, oscPort);
-    if (this->logEnabled) ofLogNotice("ofApp::setup") << "OSC sender setup to " << oscHost << ":" << oscPort;
+    oscSender.setup(oscSenderHost, oscSenderPort);
+    if (this->logEnabled) ofLogNotice("ofApp::setup") << "OSC sender setup to " << oscSenderHost << ":" << oscSenderPort;
 
     // Initialize OSC Receiver
     oscReceiver.setup(oscReceivePort);
@@ -456,15 +471,15 @@ void ofApp::setup() {
     // Load frequency settings
     loadFrequencies();
 
-    // 各カメラの周波数を初期化する例
-    // ここで、各 camView[camIdx].frequency に適切な値を設定してください。
-    // 例:
+    // Example of initializing frequencies for each camera
+    // Here, set the appropriate value for each camView[camIdx].frequency.
+    // Example:
     // camView[0].frequency = 5658;
     // camView[1].frequency = 5695;
     // ...
-    for (int i = 0; i < CAMERA_MAXNUM; ++i) { // CAMERA_MAXNUM は定義済みと仮定
-        camView[i].frequency = 0; // デフォルト値。実際の周波数に置き換えてください。
-        camView[i].loopTime = 0.0f; // 初期化
+    for (int i = 0; i < CAMERA_MAXNUM; ++i) { // Assuming CAMERA_MAXNUM is defined
+        camView[i].frequency = 0; // Default value. Replace with actual frequency.
+        camView[i].loopTime = 0.0f; // Initialization
     }
 }
 
@@ -511,25 +526,25 @@ void ofApp::update() {
         }
     }
 
-    for (int camIdx = 0; camIdx < cameraNum; camIdx++) { // cameraNum は有効なカメラ数と仮定
-        // 各カメラの処理開始時間を記録
+    for (int camIdx = 0; camIdx < cameraNum; camIdx++) { // cameraNum is assumed to be the number of active cameras
+        // Record the start time of processing for each camera
         auto startTime = std::chrono::high_resolution_clock::now();
 
-        // ... camView[camIdx] の既存の処理コード ...
-        // 例: マーカー検出、擬似RSSI計算など
+        // ... existing processing code for camView[camIdx] ...
+        // Example: marker detection, pseudo-RSSI calculation, etc.
 
-        // 各カメラの処理終了時間を記録し、loopTime を計算
+        // Record the end time of processing for each camera and calculate loopTime
         // auto endTime = std::chrono::high_resolution_clock::now();
         // camView[camIdx].loopTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-        // loopTime を AR マーカー検出の FPS から逆算
+        // Calculate loopTime inversely from AR marker detection FPS
         float arFps = camView[camIdx].aruco.getFps();
         if (arFps > 0) {
             camView[camIdx].loopTime = 1000.0f / arFps;
         } else {
-            camView[camIdx].loopTime = 0.0f; // FPSが0の場合は0を設定
+            camView[camIdx].loopTime = 0.0f; // Set to 0 if FPS is 0
         }
 
-        // ... camView[camIdx] の残りの処理コード ...
+        // ... remaining processing code for camView[camIdx] ...
     }
 
 
@@ -543,7 +558,7 @@ void ofApp::update() {
             // AR lap timer
             ofPixels pixelsToDetect;
             if (camView[camIdx].needCrop == true || camView[camIdx].needResize == true) {
-                pixelsToDetect = camView[camIdx].resizedPixels;
+                pixelsToDetect = camView[camIdx].resizedImage.getPixels();
             }
             else {
                 pixelsToDetect = grabber[camIdx].getPixels();
@@ -564,55 +579,78 @@ void ofApp::update() {
             // all markers
             int anum = camView[camIdx].aruco.getNumMarkers();
             if (anum < this->arMarkerNumThreshold && camView[camIdx].foundMarkerNum >= this->arMarkerNumThreshold) {
+                if (camView[camIdx].flickerCount == 0) {
+                    camView[camIdx].flickerEndtime = elapsedTime + flickerLength * 0.001f;
+                }
                 camView[camIdx].flickerCount++;
-                if (camView[camIdx].flickerCount <= this->flickerThreshold) {
+                if ((elapsedTime < camView[camIdx].flickerEndtime) && (camView[camIdx].flickerEndtime > 0)) {
                     anum = camView[camIdx].foundMarkerNum; // anti flicker
                 }
                 else {
                     camView[camIdx].flickerCount = 0;
+                    camView[camIdx].flickerEndtime = 0;
                 }
             }
             else {
                 camView[camIdx].flickerCount = 0;
+                camView[camIdx].flickerEndtime = 0;
             }
             // vaild markers
             int vnum = camView[camIdx].aruco.getNumMarkersValidGate();
             if (vnum < this->arMarkerNumThreshold && camView[camIdx].foundValidMarkerNum >= this->arMarkerNumThreshold) {
+                if (camView[camIdx].flickerValidCount == 0) {
+                    camView[camIdx].flickerValidEndtime = elapsedTime + flickerLength * 0.001f;
+                }
                 camView[camIdx].flickerValidCount++;
-                if (camView[camIdx].flickerValidCount <= this->flickerThreshold) {
+                if ((elapsedTime < camView[camIdx].flickerValidEndtime) && (camView[camIdx].flickerValidEndtime > 0)){
                     vnum = camView[camIdx].foundValidMarkerNum; // anti flicker
                 }
                 else {
                     camView[camIdx].flickerValidCount = 0;
+                    camView[camIdx].flickerEndtime = 0;
                 }
             }
             else {
                 camView[camIdx].flickerValidCount = 0;
+                camView[camIdx].flickerEndtime = 0;
             }
 
-            // ドローンがゲート内にいるかどうかの判断
+            // Determine if the drone is in the gate
             bool currentlyInGate;
             if (this->arLapMode == ARAP_MODE_NORM) currentlyInGate = ((vnum >= this->arMarkerNumThreshold) && (vnum== anum));
             else if (this->arLapMode == ARAP_MODE_MIDDLE) currentlyInGate = (vnum >= this->arMarkerNumThreshold);
             else currentlyInGate = (anum >= this->arMarkerNumThreshold);
 
             if (currentlyInGate) {
+                if (this->logEnabled) ofLogNotice("ofApp::update") << "Drone is currently in gate for camera " << camIdx << ". anum: " << anum << ", vnum: " << vnum;
                 camView[camIdx].isDroneInGate = true;
+                // Store the ID of the first detected marker if not already stored
+                const auto& detectedMarkers = camView[camIdx].aruco.getMarkers();
+                if (this->logEnabled) ofLogNotice("ofApp::update") << "Detected markers size: " << detectedMarkers.size();
+                if (!detectedMarkers.empty() && camView[camIdx].lastValidMarkerId == -1) { // Only update if markers are actually detected and it's not set yet
+                    camView[camIdx].lastValidMarkerId = detectedMarkers[0].id;
+                    if (this->logEnabled) ofLogNotice("ofApp::update") << "  Stored first Marker ID: " << detectedMarkers[0].id;
+                }
             } else {
-                // 以前ゲート内にいて、今ゲート外に出た場合、ラップを検出
+                // If previously in gate and now out, detect lap
                 if (camView[camIdx].isDroneInGate) {
                     // LAP DETECTED!
                     ofxOscMessage m;
                     m.setAddress("/ts_lap_data");
-                    m.addFloatArg(ofGetElapsedTimef() - this->raceStartTime); // lap_time (float)
+                    m.addFloatArg(ofGetElapsedTimef() - flickerLength * 0.001f - this->raceStartTime); // lap_time (float)
                     m.addIntArg(this->cameraFrequencyMap[camIdx]); // frequency (int)
                     m.addIntArg(this->calculate_pseudo_rssi(camIdx)); // peak_rssi (int)
-                    this->oscSender.sendMessage(m, false); // 即座に送信
-                    if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /ts_lap_data for camera " << camIdx << " (Freq: " << this->cameraFrequencyMap[camIdx] << ")";
 
-                    camView[camIdx].rssiOutput = true; // このフレームでラップが検出されたことをハートビートに伝える
+                    // Add marker ID as a string to the OSC message
+                    std::string markerIdStr = ofToString(camView[camIdx].lastValidMarkerId); // Use single ID
+                    m.addStringArg(markerIdStr); // marker_ids (string)
+
+                    this->oscSender.sendMessage(m, false); // Send immediately
+                    if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /ts_lap_data for camera " << camIdx << " (Freq: " << this->cameraFrequencyMap[camIdx] << ") with Marker ID: " << markerIdStr;
+
+                    camView[camIdx].rssiOutput = true; // Indicate that a lap was detected in this frame for heartbeat
                 }
-                camView[camIdx].isDroneInGate = false; // ドローンはゲート外
+                camView[camIdx].isDroneInGate = false; // Drone is out of gate
             }
 
             
@@ -629,7 +667,7 @@ void ofApp::update() {
         ofxOscMessage m;
         oscReceiver.getNextMessage(m);
 
-        // /get_server_time の処理
+        // Handling /get_server_time
         if (m.getAddress() == "/get_server_time") {
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_time request.";
             float uptime = ofGetElapsedTimef();
@@ -639,7 +677,7 @@ void ofApp::update() {
             oscSender.sendMessage(reply, false);
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /server_time_response with time: " << uptime;
         }
-        // /get_server_info の処理
+        // Handling /get_server_info
         else if (m.getAddress() == "/get_server_info") {
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_info request.";
             ofxOscMessage response;
@@ -649,17 +687,17 @@ void ofApp::update() {
             oscSender.sendMessage(response, false);
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /server_info response.";
         }
-        // /set_frequencies の処理
+        // Handling /set_frequencies
         else if (m.getAddress() == "/set_frequencies") {
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /set_frequencies request.";
-            // ここで周波数設定のロジックを実装する（今回はダミー）
+            // Implement frequency setting logic here (dummy for now)
             ofxOscMessage response;
             response.setAddress("/frequencies_set_ack");
-            response.addIntArg(1); // 成功を示す (1: success, 0: failure)
+            response.addIntArg(1); // Indicate success (1: success, 0: failure)
             oscSender.sendMessage(response, false);
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /frequencies_set_ack response.";
         }
-        // その他のメッセージ
+        // Other messages
         else if (m.getAddress() == "/stage_ready") {
             onStageReady(m);
         }
@@ -689,16 +727,17 @@ void ofApp::update() {
         }
 
         // Add data as stringified JSON to OSC message
-        // すべてのデータを1つのJSONオブジェクトにまとめる
+        // Combine all data into a single JSON object
         ofJson heartbeat_data;
         heartbeat_data["current_rssi"] = current_rssi_json;
         heartbeat_data["frequency"] = frequency_json;
         heartbeat_data["crossing_flag"] = crossing_flag_json;
         heartbeat_data["loop_time"] = loop_time_json;
+        heartbeat_data["flicker_length"] = this->flickerLength;
 
-        // JSON文字列をofBufferに変換してバイナリデータとして送信
+        // Send JSON string as binary data by converting to ofBuffer
         std::string json_str = heartbeat_data.dump();
-        m.addStringArg(json_str); // JSON文字列をstring型として送信
+        m.addStringArg(json_str); // Send JSON string as string type
 
         this->oscSender.sendMessage(m, false);
         if (this->logEnabled) ofLogVerbose("ofApp::update") << "Sent /heartbeat";
@@ -810,7 +849,7 @@ void ofApp::drawCameraImage(int camidx) {
     }
     ofSetColor(this->myColorWhite);
     if ((camView[i].needCrop == true || camView[i].needResize == true)
-        && camView[i].resizedImage.isAllocated() == true) {
+        && camView[i].resizedImage.getWidth() > 0) {
         // if (this->logEnabled) ofLogNotice("ofApp::drawCameraImage") << "Drawing cam " << i << " resizedImage at " << x << "," << y << " with size " << w << "," << h;
         camView[i].resizedImage.draw(x, y, w, h);
     }
@@ -1006,9 +1045,9 @@ void ofApp::keyPressedOverlayHelp(int key) {
     if (key == 'h' || key == 'H' || ofGetKeyPressed(OF_KEY_ESC)) {
         this->setOverlayMode(OVLMODE_NONE);
     } else if (ofGetKeyPressed(OF_KEY_LEFT)) {
-        this->changeFlickerThreshold(TVP_VAL_MINUS);
+        this->changeFlickerLength(TVP_VAL_MINUS);
     } else if (ofGetKeyPressed(OF_KEY_RIGHT)) {
-        this->changeFlickerThreshold(TVP_VAL_PLUS);
+        this->changeFlickerLength(TVP_VAL_PLUS);
     } else if (ofGetKeyPressed(OF_KEY_UP)) {
         this->changeArucoMinSize(TVP_VAL_PLUS);
     } else if (ofGetKeyPressed(OF_KEY_DOWN)) {
@@ -1083,12 +1122,12 @@ void ofApp::toggleARLap() {
 }
 
 //--------------------------------------------------------------
-void ofApp::changeFlickerThreshold(int val) {
-    this->flickerThreshold += val;
-    if (this->flickerThreshold < 0) {
-        this->flickerThreshold = 0;
-    } else if (this->flickerThreshold > 20) {
-        this->flickerThreshold = 20;
+void ofApp::changeFlickerLength(int val) {
+    this->flickerLength += val;
+    if (this->flickerLength < 0) {
+        this->flickerLength = 1000;
+    } else if (this->flickerLength > 1000) {
+        this->flickerLength = 0;
     }
     this->saveSettingsFile();
 }
@@ -1216,68 +1255,44 @@ void ofApp::exit() {
 //--------------------------------------------------------------
 void ofApp::grabberUpdateResize(int cidx) {
     tvpCamView* cv = &camView[cidx];
-        grabber[cidx].update();
-        if (grabber[cidx].isFrameNew() == false
-            || (cv->needCrop == false && cv->needResize == false)) {
-            return;
-        }
-        cv->resizedPixels = grabber[cidx].getPixels();
-        if (cv->needCrop == true) {
-            cv->resizedPixels.crop(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
-        }
-        if (cv->needResize == true) {
-            float aspectRatio = (float)cv->cropW / cv->cropH;
-            int targetWidth = CAMERA_WIDTH;
-            int targetHeight = CAMERA_HEIGHT;
+    grabber[cidx].update();
+    if (grabber[cidx].isFrameNew() == false) {
+        return;
+    }
 
-            if (cv->isWide == true) {
-                targetHeight = CAMERA_HEIGHT * 0.75; // 16:9 target height
-            }
+    if (cv->needCrop == false && cv->needResize == false) {
+        cv->resizedImage.setFromPixels(grabber[cidx].getPixels());
+        return;
+    }
 
-            int newWidth, newHeight;
-            float targetAspectRatio = (float)targetWidth / targetHeight;
+    ofxCvColorImage sourceImage;
+    sourceImage.allocate(grabber[cidx].getWidth(), grabber[cidx].getHeight());
+    sourceImage.setFromPixels(grabber[cidx].getPixels());
 
-            if (aspectRatio > targetAspectRatio) { // Image is wider than target
-                newWidth = targetWidth;
-                newHeight = round(targetWidth / aspectRatio);
-            } else { // Image is taller than target or same aspect ratio
-                newHeight = targetHeight;
-                newWidth = round(targetHeight * aspectRatio);
-            }
-            cv->resizedPixels.resize(newWidth, newHeight);
-        }
-        cv->resizedImage.setFromPixels(cv->resizedPixels);
+    if (cv->needCrop == true) {
+        sourceImage.setROI(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
+    }
+
+    cv->resizedImage.scaleIntoMe(sourceImage, CV_INTER_AREA);
+
+    if (cv->needCrop == true) {
+        sourceImage.resetROI();
+    }
 }
+
 void ofApp::grabberUpdateResizeMulti() {
     grabber[0].update();
     if (grabber[0].isFrameNew() == false) return;
 
+    multicamSource.setFromPixels(grabber[0].getPixels());
+
     tvpCamView* cv;
     for (int i = 0; i < this->cameraNum; i++) {
         cv = &camView[i];
-        cv->resizedPixels = grabber[0].getPixels();
-        cv->resizedPixels.crop(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
-
-        float aspectRatio = (float)cv->cropW / cv->cropH;
-        int targetWidth = CAMERA_WIDTH;
-        int targetHeight = CAMERA_HEIGHT;
-
-        if (cv->isWide == true) {
-            targetHeight = CAMERA_HEIGHT * 0.75; // 16:9 target height
-        }
-
-        int newWidth, newHeight;
-        float targetAspectRatio = (float)targetWidth / targetHeight;
-
-        if (aspectRatio > targetAspectRatio) { // Image is wider than target
-            newWidth = targetWidth;
-            newHeight = round(targetWidth / aspectRatio);
-        } else { // Image is taller than target or same aspect ratio
-            newHeight = targetHeight;
-            newWidth = round(targetHeight * aspectRatio);
-        }
-        cv->resizedPixels.resize(newWidth, newHeight);
-        cv->resizedImage.setFromPixels(cv->resizedPixels);
+        
+        multicamSource.setROI(cv->cropX, cv->cropY, cv->cropW, cv->cropH);
+        cv->resizedImage.scaleIntoMe(multicamSource, CV_INTER_AREA);
+        multicamSource.resetROI();
     }
 }
 
@@ -1466,6 +1481,7 @@ void ofApp::initRaceVars() {
         camView[i].flickerValidCount = 0;
         camView[i].rssiOutput = false;
         camView[i].isDroneInGate = false;
+        camView[i].lastValidMarkerId = -1; // Initialize with an invalid ID
     }
     this->elapsedTime = 0;
 }
@@ -1705,8 +1721,8 @@ void ofApp::drawHelpBody(int line) {
     ofSetColor(this->myColorDGray);
     this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
     ofSetColor(this->myColorWhite);
-    value = ofToString(this->flickerThreshold);
-    this->drawStringBlock(&this->myFontOvlayP, "Flicker Frame Count(Default 3 Frames)", blk1, line, ALIGN_LEFT, szb, szl);
+    value = ofToString(this->flickerLength);
+    this->drawStringBlock(&this->myFontOvlayP, "Anti Flicker Length(Default 100 millisecondss)", blk1, line, ALIGN_LEFT, szb, szl);
     this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
     this->drawStringBlock(&this->myFontOvlayP, "Left/Right", blk3, line, ALIGN_CENTER, szb, szl);
     line++;
@@ -1714,7 +1730,7 @@ void ofApp::drawHelpBody(int line) {
     ofSetColor(this->myColorDGray);
     this->drawULineBlock(blk1, blk4, line + 1, szb, szl);
     ofSetColor(this->myColorWhite);
-    value = ofToString(this->arucoMinSize, 2) +"%"; // 小数点以下2桁まで表示
+    value = ofToString(this->arucoMinSize, 2) +"%"; // Display up to 2 decimal places
     this->drawStringBlock(&this->myFontOvlayP, "ArUco Min Size (% of Screen Width)", blk1, line, ALIGN_LEFT, szb, szl);
     this->drawStringBlock(&this->myFontOvlayP, value, blk2, line, ALIGN_CENTER, szb, szl);
     this->drawStringBlock(&this->myFontOvlayP, "Up/Down", blk3, line, ALIGN_CENTER, szb, szl);
