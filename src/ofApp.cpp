@@ -20,6 +20,7 @@ void ofApp::setupInit() {
         // macOS binary release
         ofSetDataPathRoot("../Resources/data");
     }
+    this->resourcesAllocated = false;
     this->sysStatEnabled = DFLT_SYS_STAT;
     // scene
     this->tvpScene = SCENE_INIT;
@@ -404,36 +405,6 @@ void ofApp::setupMain() {
     // camera
     this->cameraNumVisible = this->cameraNum;
     setViewParams();
-
-    if (isMultiView) {
-        multicamSource.allocate(grabber[0].getWidth(), grabber[0].getHeight());
-    }
-
-    for (int i = 0; i < this->cameraNum; i++) {
-        camView[i].moveSteps = 1;
-
-        // Allocation for resized image
-        tvpCamView* cv = &camView[i];
-        float aspectRatio = (float)cv->cropW / cv->cropH;
-        int targetWidth = CAMERA_WIDTH;
-        int targetHeight = CAMERA_HEIGHT;
-
-        if (cv->isWide == true) {
-            targetHeight = CAMERA_HEIGHT * 0.75;
-        }
-
-        int newWidth, newHeight;
-        float targetAspectRatio = (float)targetWidth / targetHeight;
-
-        if (aspectRatio > targetAspectRatio) {
-            newWidth = targetWidth;
-            newHeight = round(targetWidth / aspectRatio);
-        } else {
-            newHeight = targetHeight;
-            newWidth = round(targetHeight * aspectRatio);
-        }
-        cv->resizedImage.allocate(newWidth, newHeight);
-    }
     // AR laptimer
     for (int i = 0; i < this->cameraNum; i++) {
         camView[i].aruco.setUseHighlyReliableMarker(ARAP_MKR_FILE);
@@ -1254,11 +1225,40 @@ void ofApp::exit() {
 
 //--------------------------------------------------------------
 void ofApp::grabberUpdateResize(int cidx) {
-    tvpCamView* cv = &camView[cidx];
     grabber[cidx].update();
     if (grabber[cidx].isFrameNew() == false) {
         return;
     }
+
+    if (!resourcesAllocated && grabber[cidx].getWidth() > 0) {
+        for (int i = 0; i < this->cameraNum; i++) {
+            tvpCamView* cv = &camView[i];
+            float aspectRatio = (float)cv->cropW / cv->cropH;
+            int targetWidth = CAMERA_WIDTH;
+            int targetHeight = CAMERA_HEIGHT;
+
+            if (cv->isWide == true) {
+                targetHeight = CAMERA_HEIGHT * 0.75;
+            }
+
+            int newWidth, newHeight;
+            float targetAspectRatio = (float)targetWidth / targetHeight;
+
+            if (aspectRatio > targetAspectRatio) {
+                newWidth = targetWidth;
+                newHeight = round(targetWidth / aspectRatio);
+            } else {
+                newHeight = targetHeight;
+                newWidth = round(targetHeight * aspectRatio);
+            }
+            cv->resizedImage.allocate(newWidth, newHeight);
+        }
+        resourcesAllocated = true;
+    }
+
+    if (!resourcesAllocated) return;
+
+    tvpCamView* cv = &camView[cidx];
 
     if (cv->needCrop == false && cv->needResize == false) {
         cv->resizedImage.setFromPixels(grabber[cidx].getPixels());
@@ -1283,6 +1283,36 @@ void ofApp::grabberUpdateResize(int cidx) {
 void ofApp::grabberUpdateResizeMulti() {
     grabber[0].update();
     if (grabber[0].isFrameNew() == false) return;
+
+    if (!resourcesAllocated && grabber[0].getWidth() > 0) {
+        multicamSource.allocate(grabber[0].getWidth(), grabber[0].getHeight());
+        
+        for (int i = 0; i < this->cameraNum; i++) {
+            tvpCamView* cv = &camView[i];
+            float aspectRatio = (float)cv->cropW / cv->cropH;
+            int targetWidth = CAMERA_WIDTH;
+            int targetHeight = CAMERA_HEIGHT;
+
+            if (cv->isWide == true) {
+                targetHeight = CAMERA_HEIGHT * 0.75;
+            }
+
+            int newWidth, newHeight;
+            float targetAspectRatio = (float)targetWidth / targetHeight;
+
+            if (aspectRatio > targetAspectRatio) {
+                newWidth = targetWidth;
+                newHeight = round(targetWidth / aspectRatio);
+            } else {
+                newHeight = targetHeight;
+                newWidth = round(targetHeight * aspectRatio);
+            }
+            cv->resizedImage.allocate(newWidth, newHeight);
+        }
+        resourcesAllocated = true;
+    }
+
+    if (!resourcesAllocated) return;
 
     multicamSource.setFromPixels(grabber[0].getPixels());
 
