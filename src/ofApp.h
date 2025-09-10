@@ -15,7 +15,7 @@
 /* ---------- definitions ---------- */
 
 // system
-#define APP_VER         "v1.0.1"
+#define APP_VER         "v1.0.2beta1"
 
 #define DEBUG_ENABLED   false
 #define HELP_LINES      35  // must be <= OVLTXT_LINES
@@ -322,6 +322,7 @@ private:
     // system
     int camCheckCount;
     int tvpScene;
+    bool resourcesAllocated;
     bool sysStatEnabled;
     bool logEnabled;
 
