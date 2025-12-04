@@ -15,7 +15,7 @@
 /* ---------- definitions ---------- */
 
 // system
-#define APP_VER         "v1.0.2beta1"
+#define APP_VER         "v2.0.0beta1"
 
 #define DEBUG_ENABLED   false
 #define HELP_LINES      35  // must be <= OVLTXT_LINES
@@ -261,7 +261,7 @@ public:
     void loadFrequencies();
     void saveFrequencies();
     int calculate_pseudo_rssi(int camIndex);
-    void onStageReady(ofxOscMessage& m); // Added
+    void onStageReady(ofxOscMessage& m);
 
     // Main setup and race logic
     void setupMain();
