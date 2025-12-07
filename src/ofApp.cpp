@@ -644,7 +644,7 @@ void ofApp::update() {
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_info request.";
             ofxOscMessage response;
             response.setAddress("/server_info");
-            response.addStringArg("2.0.0"); // release_version
+            response.addStringArg("1.0.0"); // release_version
             response.addStringArg("TinyViewPlusAsSensors"); // name
             oscSender.sendMessage(response, false);
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /server_info response.";
