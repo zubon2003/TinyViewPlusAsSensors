@@ -620,6 +620,7 @@ void ofApp::update() {
                     if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /ts_lap_data for camera " << camIdx << " (Freq: " << this->cameraFrequencyMap[camIdx] << ") with Marker ID: " << markerIdStr;
 
                     camView[camIdx].rssiOutput = true; // Indicate that a lap was detected in this frame for heartbeat
+                    camView[camIdx].lastValidMarkerId = -1; // Reset for the next lap
                 }
                 camView[camIdx].isDroneInGate = false; // Drone is out of gate
             }
@@ -638,18 +639,8 @@ void ofApp::update() {
         ofxOscMessage m;
         oscReceiver.getNextMessage(m);
 
-        // Handling /get_server_time
-        if (m.getAddress() == "/get_server_time") {
-            if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_time request.";
-            float uptime = ofGetElapsedTimef();
-            ofxOscMessage reply;
-            reply.setAddress("/server_time_response");
-            reply.addFloatArg(uptime);
-            oscSender.sendMessage(reply, false);
-            if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /server_time_response with time: " << uptime;
-        }
         // Handling /get_server_info
-        else if (m.getAddress() == "/get_server_info") {
+        if (m.getAddress() == "/get_server_info") {
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Received /get_server_info request.";
             ofxOscMessage response;
             response.setAddress("/server_info");
@@ -668,7 +659,6 @@ void ofApp::update() {
             oscSender.sendMessage(response, false);
             if (this->logEnabled) ofLogNotice("ofApp::update") << "Sent /frequencies_set_ack response.";
         }
-        // Other messages
         else if (m.getAddress() == "/stage_ready") {
             onStageReady(m);
         }
@@ -1516,20 +1506,12 @@ void ofApp::initRaceVars() {
     this->elapsedTime = 0;
 }
 void ofApp::onStageReady(ofxOscMessage& m) {
-    if (this->logEnabled) ofLogNotice("ofApp::onStageReady") << "Received /stage_ready message.";
+    if (this->logEnabled) ofLogNotice("ofApp::onStageReady") << "Received /stage_ready message. Starting race immediately.";
 
-    if (m.getNumArgs() > 0 && (m.getArgType(0) == OFXOSC_TYPE_FLOAT || m.getArgType(0) == OFXOSC_TYPE_DOUBLE)) {
-        float pi_starts_at_s = m.getArgAsFloat(0);
+    this->raceStartTime = ofGetElapsedTimef(); // Set race start time to current time
+    this->raceStarted = true;
 
-        this->raceStartTime = pi_starts_at_s;
-
-        if (this->logEnabled) ofLogNotice("ofApp::onStageReady") << "Updated raceStartTime to: " << this->raceStartTime;
-
-        this->raceStarted = true;
-
-    } else {
-        if (this->logEnabled) ofLogWarning("ofApp::onStageReady") << "Received /stage_ready message with invalid arguments.";
-    }
+    if (this->logEnabled) ofLogNotice("ofApp::onStageReady") << "Race started immediately. raceStartTime set to: " << this->raceStartTime;
 }
 
 //--------------------------------------------------------------
