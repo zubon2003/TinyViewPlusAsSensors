@@ -1,0 +1,22 @@
+{
+  "server1_port": 5000,
+  "server2_port": 5001,
+  "server3_port": 5002,
+  "server4_port": 0,
+  "server1_id": [2],
+  "server2_id": [1],
+  "server3_id": [3],
+  "server4_id": [0],
+  "tvpas_target": {
+    "host": "127.0.0.1",
+    "port": 8001
+  },
+  "relay_osc_listen_port": 8000,
+  "useComPort": false,
+  "comPort": "COM3",
+  "osc_forwarding": true,
+  "camera_switcher_osc_target": {
+    "host": "127.0.0.1",
+    "port": 9000
+  }
+}
