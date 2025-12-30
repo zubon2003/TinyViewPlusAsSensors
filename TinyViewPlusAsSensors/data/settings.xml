@@ -1,7 +1,7 @@
 <system>
     <sysStat>1</sysStat>
     <logEnabled>0</logEnabled>
-    <allFrameDetect>0</allFrameDetect>
+    <allFrameDetect>1</allFrameDetect>
 </system>
 <view>
     <fullscreen>0</fullscreen>
@@ -12,9 +12,14 @@
     <arMode>2</arMode>
     <minSize>5</minSize>
     <flickerLength>100</flickerLength>
+    <flickerThreshold>3</flickerThreshold>
 </aruco>
 <osc>
     <host>localhost</host>
     <port>8000</port>
     <receivePort>8001</receivePort>
+    <receiveHost>127.0.0.1</receiveHost>
 </osc>
+<race>
+    <arMode>0</arMode>
+</race>
